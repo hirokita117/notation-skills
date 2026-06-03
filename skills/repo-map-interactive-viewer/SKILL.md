@@ -85,6 +85,11 @@ DSL 生成は [`repo-map-notation`](../repo-map-notation/SKILL.md) の責務。�
 `file://` で HTML を直接開いた場合は Ask は使えないが、**Copy prompt 方式は動く**
 （その場合の継続は、貼り付け先のあなた自身の Claude セッションで成立する）。
 
+> Ctrl+C せずにターミナルを閉じてブリッジが孤児化しても、**次回同じポートで起動すると
+> 古い自分のブリッジを自動で検出・停止してから立ち上がる**（本人確認できた自分のブリッジ
+> だけが対象。別アプリは止めない）。無効化は `--no-reclaim`。詳細は
+> [references/local-bridge.md](references/local-bridge.md) の「起動時のポート確保」。
+
 ## reference 地図
 
 | ファイル | 中身 | いつ読む |

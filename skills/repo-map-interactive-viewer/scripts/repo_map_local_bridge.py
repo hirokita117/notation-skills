@@ -7,6 +7,8 @@
   * `claude -p` を subprocess で呼び、回答を JSON で返す。
   * 同一起動中の質問を 1 つの Claude 会話として継続する（サーバ生成 UUID を持ち回り、
     1 ターン目 --session-id、以降 --resume）。claude は毎回起動・即終了で常駐しない。
+  * 起動時、同ポートに残った『自分の』古いブリッジ（前回 Ctrl+C せず閉じて孤児化した等）を
+    health で本人確認したうえで停止し、ポートを空けてから bind する（reclaim_port）。
 
 設計上の境界:
   * 描画はしない（notation-render の責務）。HTML は受け取って配信するだけ。
@@ -19,6 +21,8 @@
   * `claude` の argv はブリッジ側が固定フラグセットで組み立てる。
   * セッション ID はサーバ生成（uuid4）。HTML からは設定・注入できない（reset 起動のみ可）。
   * パス系フィールドは repo-root 配下に realpath ジェイルする。
+  * 起動時の reclaim は health で本人確認できた自分のブリッジだけを停止する。ポートを握る
+    『別アプリ』は決して kill しない（その場合は停止せず起動を中止する）。
   * --dangerously-skip-permissions は使わない。--no-session-persistence も使わない（resume と非互換）。
 
 標準ライブラリのみ。Python 3 系（python3 / python）で動く。
@@ -27,12 +31,15 @@
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -41,6 +48,9 @@ from urllib.parse import urlparse
 # --- 既定値 -----------------------------------------------------------------
 
 DEFAULT_PORT = 17333
+# 自分のブリッジを health で本人確認するための固定識別子。
+# Server ヘッダ接頭辞（server_version）と /api/health の service フィールドの両方に使う。
+SERVICE_ID = "repo-map-local-bridge"
 DEFAULT_ALLOWED_TOOLS = "Read,Glob,Grep"
 DEFAULT_PERMISSION_MODE = "plan"
 DEFAULT_CLAUDE_TIMEOUT = 180.0  # 秒
@@ -72,6 +82,7 @@ class BridgeConfig:
     allowed_models: tuple[str, ...] = ()       # UI セレクトの許可リスト（--models 由来）
     default_model: str | None = None           # UI 初期選択モデル（allowed_models のいずれか）
     default_effort: str | None = None          # UI 初期選択 effort（ALLOWED_EFFORTS のいずれか）
+    reclaim: bool = True                       # 起動時に同ポートの古い自分のブリッジを掃除するか
 
 
 # --- パス・ジェイル ----------------------------------------------------------
@@ -316,7 +327,7 @@ def validate_ask_payload(payload, config: BridgeConfig):
 
 class BridgeHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-    server_version = "repo-map-local-bridge/1.0"
+    server_version = SERVICE_ID + "/1.0"   # Server ヘッダ＝本人確認シグネチャ（reclaim が参照）
 
     # 便宜アクセサ
     @property
@@ -362,8 +373,12 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
     def _serve_health(self):
         # セッション欄はロックなしの best-effort 読み（表示用なので多少 stale でも可）。
+        # service / pid は、新インスタンスが起動時に「自分のブリッジ」を本人確認し
+        # 安全に停止する（reclaim_port）ために使う。
         self._send_json(200, {
             "ok": True,
+            "service": SERVICE_ID,
+            "pid": os.getpid(),
             "repoRoot": self.config.repo_root,
             "html": self.config.html,
             "dsl": self.config.dsl,
@@ -510,6 +525,171 @@ class BridgeServer(ThreadingHTTPServer):
         self.session_continuity = True
 
 
+# --- ポート確保（同ポートに残った自分のブリッジを掃除する） -------------------
+#
+# 起動時、同じポートに前回のブリッジが残っていることがある（ターミナルを Ctrl+C せず
+# に閉じた等で孤児化したケース）。その「自分のブリッジ」だけを検出して停止し、ポートを
+# 空けてから bind する。安全方針: 止めるのは health で本人確認できた repo-map ブリッジ
+# に限る。ポートを握っている『別アプリ』は決して kill しない（中止して別ポートを促す）。
+
+def _probe_health(port: int, timeout: float = 0.6) -> dict | None:
+    """127.0.0.1:<port>/api/health を叩いて応答を返す。
+
+    戻り値:
+      * None — 誰も応答しない（接続拒否・タイムアウト等 ＝ ポートは空き）。
+      * {"server": <Server ヘッダ>, "data": <JSON dict|None>, "status": int} — 何か応答した。
+    自分のブリッジか別アプリかの判定は呼び出し側（reclaim_port）が行う。
+    """
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
+    try:
+        conn.request("GET", "/api/health", headers={"Host": "127.0.0.1"})
+        resp = conn.getresponse()
+        raw = resp.read()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            data = None
+        return {"server": resp.getheader("Server", "") or "", "data": data, "status": resp.status}
+    except (OSError, http.client.HTTPException):
+        return None
+    finally:
+        try:
+            conn.close()
+        except OSError:
+            pass
+
+
+def _is_our_bridge(probe: dict) -> bool:
+    """health 応答が repo-map ローカルブリッジ自身のものか判定する。
+
+    Server ヘッダ（全バージョンで `repo-map-local-bridge/...`）か、health JSON の service
+    フィールド（本バージョン以降）のどちらかで本人確認する。どちらも満たさない応答
+    （別アプリ）は「自分のものではない」とみなし、絶対に止めない。
+    """
+    if (probe.get("server") or "").startswith(SERVICE_ID):
+        return True
+    data = probe.get("data")
+    return isinstance(data, dict) and data.get("service") == SERVICE_ID
+
+
+def _bridge_pid(probe: dict):
+    """health 応答からブリッジの PID を取り出す（取れなければ None）。"""
+    data = probe.get("data")
+    if isinstance(data, dict):
+        pid = data.get("pid")
+        if isinstance(pid, int) and pid > 0:
+            return pid
+    return None
+
+
+def _pid_alive(pid: int) -> bool:
+    """pid のプロセスが存在するか（シグナル 0 で確認）。"""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True   # 存在はする（権限が無いだけ）
+    return True
+
+
+def _wait_until_free(pid: int, port: int, timeout: float, interval: float = 0.1) -> bool:
+    """pid が消え、かつポートが解放される（health が応答しなくなる）まで待つ。"""
+    deadline = time.monotonic() + timeout
+    while True:
+        if not _pid_alive(pid) and _probe_health(port, timeout=0.3) is None:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(interval)
+
+
+def _terminate_bridge(pid: int, port: int, *, term_wait: float = 5.0, kill_wait: float = 2.0) -> bool:
+    """古いブリッジ pid を SIGTERM →（効かなければ）SIGKILL で停止し、ポート解放を待つ。"""
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return True   # もういない
+    except PermissionError:
+        sys.stderr.write(f"[bridge] pid={pid} を停止する権限がありません。手動で停止してください。\n")
+        return False
+
+    if _wait_until_free(pid, port, term_wait):
+        sys.stderr.write("[bridge] 古いブリッジを停止しました。\n")
+        return True
+
+    sys.stderr.write(f"[bridge] SIGTERM で止まらないため pid={pid} を強制停止します…\n")
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return True
+    except PermissionError:
+        sys.stderr.write(f"[bridge] pid={pid} を強制停止する権限がありません。手動で停止してください。\n")
+        return False
+
+    if _wait_until_free(pid, port, kill_wait):
+        sys.stderr.write("[bridge] 古いブリッジを強制停止しました。\n")
+        return True
+
+    sys.stderr.write(
+        f"[bridge] pid={pid} を停止できませんでした。手動で確認してください"
+        f"（pkill -f repo_map_local_bridge）。\n"
+    )
+    return False
+
+
+def reclaim_port(port: int, *, enabled: bool = True) -> bool:
+    """起動前に、同ポートに残った『自分のブリッジ』を検出して停止する。
+
+    返り値が True なら bind を進めてよい。False なら掃除すべきでない／できないので、
+    呼び出し側は起動を中止する（別アプリが使用中、または PID 不明で安全に止められない）。
+    """
+    if not enabled:
+        return True
+
+    probe = _probe_health(port)
+    if probe is None:
+        return True   # 誰も応答しない ＝ ポートは空いている見込み。bind を試す。
+
+    if not _is_our_bridge(probe):
+        sys.stderr.write(
+            f"[bridge] ポート {port} は別のプロセスが使用中です"
+            f"（repo-map ブリッジではないため掃除しません）。\n"
+            f"[bridge] --port で別ポートを指定するか、その別プロセスを確認してください。\n"
+        )
+        return False
+
+    pid = _bridge_pid(probe)
+    if pid is None:
+        sys.stderr.write(
+            f"[bridge] ポート {port} に古い repo-map ブリッジが残っていますが PID を取得できません。\n"
+            f"[bridge] 手動で停止してください: pkill -f repo_map_local_bridge\n"
+        )
+        return False
+
+    if pid == os.getpid():
+        return True   # 自分自身（理屈上は来ないが保険）
+
+    sys.stderr.write(f"[bridge] ポート {port} に残った古いブリッジ (pid={pid}) を停止します…\n")
+    return _terminate_bridge(pid, port)
+
+
+def install_shutdown_signals() -> None:
+    """SIGTERM を穏当な停止に変える（reclaim や .command の kill で finally を通すため）。
+
+    serve_forever の KeyboardInterrupt 経路に合流させ、server_close を確実に走らせる。
+    これにより、後続インスタンスが本プロセスを reclaim する際もクリーンに終了する。
+    メインスレッド以外では signal を設定できないので、その場合は黙って諦める。
+    """
+    def _handler(signum, frame):
+        raise KeyboardInterrupt
+
+    try:
+        signal.signal(signal.SIGTERM, _handler)
+    except (ValueError, OSError):
+        pass   # 非メインスレッド等。設定できなくても致命的ではない。
+
+
 # --- 起動 --------------------------------------------------------------------
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -538,6 +718,9 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--no-session-continuity", action="store_true",
                         help="会話継続を無効化し、質問ごとに独立した claude 起動に戻す"
                              "（既定は継続 ON。claude --no-session-persistence とは別物）")
+    parser.add_argument("--no-reclaim", action="store_true",
+                        help="起動時に同ポートの古い repo-map ブリッジを自動停止しない"
+                             "（既定は自動停止 ON。別アプリが使用中なら停止せず bind 失敗で中止）")
     return parser.parse_args(argv)
 
 
@@ -577,13 +760,26 @@ def build_config(args: argparse.Namespace) -> BridgeConfig:
         allowed_models=allowed_models,
         default_model=default_model,
         default_effort=args.default_effort,
+        reclaim=not args.no_reclaim,
     )
 
 
 def serve(config: BridgeConfig):
-    server = BridgeServer(("127.0.0.1", config.port), BridgeHandler)
+    # 起動前に、同ポートに残った『自分のブリッジ』だけを掃除してポートを空ける。
+    if not reclaim_port(config.port, enabled=config.reclaim):
+        raise SystemExit(
+            f"ポート {config.port} を確保できませんでした。--port で別ポートを指定してください。"
+        )
+    try:
+        server = BridgeServer(("127.0.0.1", config.port), BridgeHandler)
+    except OSError as exc:
+        raise SystemExit(
+            f"ポート {config.port} を bind できませんでした: {exc}。"
+            f" 別プロセスが使用中の可能性があります。--port で別ポートを指定してください。"
+        )
     server.bridge_config = config  # type: ignore[attr-defined]
     server.session_continuity = config.session_continuity
+    install_shutdown_signals()   # SIGTERM でも finally の server_close を通す
     url = f"http://127.0.0.1:{config.port}/repo-map.html"
     sys.stderr.write(f"[bridge] listening on {url}\n")
     sys.stderr.write(f"[bridge] repo-root: {config.repo_root}\n")

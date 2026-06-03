@@ -10,6 +10,8 @@ import importlib.util
 import json
 import os
 import shutil
+import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -49,6 +51,16 @@ def make_config(repo_root, html=EXAMPLE_HTML, claude_bin=FAKE_CLAUDE, dsl=None,
         default_model=default_model,
         default_effort=default_effort,
     )
+
+
+def _free_port():
+    """直前まで空いていた 127.0.0.1 のポート番号を返す（テスト用）。"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+    finally:
+        s.close()
 
 
 def request(port, method, path, body=None, headers=None):
@@ -294,6 +306,20 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(data["availableEfforts"], ["low", "medium", "high", "xhigh", "max"])
         self.assertIsNone(data["defaultModel"])
         self.assertIsNone(data["defaultEffort"])
+
+    def test_health_exposes_service_and_pid(self):
+        # reclaim の本人確認に使う service / pid を health が公開している
+        status, body = request(self.port, "GET", "/api/health")
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertEqual(data["service"], bridge.SERVICE_ID)
+        self.assertEqual(data["pid"], os.getpid())   # サーバはこのテストプロセス内スレッド
+
+    def test_probe_health_identifies_our_bridge(self):
+        probe = bridge._probe_health(self.port)
+        self.assertIsNotNone(probe)
+        self.assertTrue(bridge._is_our_bridge(probe))
+        self.assertEqual(bridge._bridge_pid(probe), os.getpid())
 
     def test_smoke_serves_html(self):
         status, body = request(self.port, "GET", "/repo-map.html")
@@ -552,6 +578,131 @@ class InjectionTests(_LiveServerCase):
         # model/effort は既知キー化されたが、未指定なら None（フラグ省略）
         self.assertIsNone(cleaned["model"])
         self.assertIsNone(cleaned["effort"])
+
+
+# --- ポート確保（reclaim）のテスト ------------------------------------------
+
+class ReclaimHelperTests(unittest.TestCase):
+    """reclaim_port を支えるヘルパの判定ロジック（プロセスは起こさない）。"""
+
+    def test_is_our_bridge_by_server_header(self):
+        probe = {"server": "repo-map-local-bridge/1.0 Python/3.12", "data": None}
+        self.assertTrue(bridge._is_our_bridge(probe))
+
+    def test_is_our_bridge_by_service_field(self):
+        probe = {"server": "", "data": {"service": bridge.SERVICE_ID}}
+        self.assertTrue(bridge._is_our_bridge(probe))
+
+    def test_foreign_is_not_our_bridge(self):
+        self.assertFalse(bridge._is_our_bridge({"server": "nginx/1.25", "data": {"x": 1}}))
+        self.assertFalse(bridge._is_our_bridge({"server": "", "data": None}))
+
+    def test_bridge_pid_extraction(self):
+        self.assertEqual(bridge._bridge_pid({"data": {"pid": 4321}}), 4321)
+        self.assertIsNone(bridge._bridge_pid({"data": {"pid": 0}}))     # 非正は無効
+        self.assertIsNone(bridge._bridge_pid({"data": {"pid": "x"}}))   # 非 int は無効
+        self.assertIsNone(bridge._bridge_pid({"data": None}))
+
+    def test_reclaim_disabled_is_noop_true(self):
+        # --no-reclaim 相当: 何もせず True（=そのまま bind を試す）
+        self.assertTrue(bridge.reclaim_port(_free_port(), enabled=False))
+
+    def test_reclaim_free_port_returns_true(self):
+        # 誰もいないポートは掃除不要で True
+        self.assertTrue(bridge.reclaim_port(_free_port()))
+
+
+class ReclaimSubprocessTests(unittest.TestCase):
+    """実際に別プロセスのブリッジを起こし、reclaim_port が本人を停止することを確認。"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.procs = []
+
+    def tearDown(self):
+        for p in self.procs:
+            try:
+                p.kill()
+            except OSError:
+                pass
+            try:
+                p.wait(timeout=3)
+            except (subprocess.TimeoutExpired, OSError):
+                pass
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _spawn_bridge(self, port):
+        proc = subprocess.Popen(
+            [sys.executable, BRIDGE_PATH,
+             "--repo-root", self.tmp, "--html", EXAMPLE_HTML,
+             "--port", str(port), "--claude-bin", FAKE_CLAUDE, "--no-reclaim"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        self.procs.append(proc)
+        # 子プロセスをゾンビにしないよう、終了を待つリーパースレッドを回す
+        # （reclaim 側の _pid_alive が正しく「消えた」と判定できるようにするため）。
+        threading.Thread(target=proc.wait, daemon=True).start()
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            probe = bridge._probe_health(port)
+            if probe and bridge._is_our_bridge(probe):
+                return proc
+            time.sleep(0.1)
+        self.fail("bridge subprocess did not become ready")
+
+    def test_reclaim_stops_old_bridge(self):
+        port = _free_port()
+        proc = self._spawn_bridge(port)
+        # health から旧 pid を本人確認
+        probe = bridge._probe_health(port)
+        self.assertEqual(bridge._bridge_pid(probe), proc.pid)
+        # reclaim → 旧ブリッジを停止して True
+        self.assertTrue(bridge.reclaim_port(port))
+        # プロセスは終了し、ポートは解放されている
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline and proc.poll() is None:
+            time.sleep(0.05)
+        self.assertIsNotNone(proc.poll())              # 終了済み
+        self.assertIsNone(bridge._probe_health(port))  # ポート解放
+
+
+class ReclaimForeignTests(unittest.TestCase):
+    """ポートを握るのが別アプリのときは reclaim は止めず False を返す（巻き添え防止）。"""
+
+    def setUp(self):
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        class _Foreign(BaseHTTPRequestHandler):
+            server_version = "TotallyOtherApp/9.9"
+
+            def do_GET(self):  # noqa: N802
+                body = b"{}"
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):  # 静かに
+                pass
+
+        self.port = _free_port()
+        self.server = HTTPServer(("127.0.0.1", self.port), _Foreign)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=3)
+
+    def test_reclaim_refuses_and_spares_foreign(self):
+        # 別アプリ判定 → 止めずに False
+        self.assertFalse(bridge.reclaim_port(self.port))
+        # 巻き添えにしていない（まだ応答する）
+        probe = bridge._probe_health(self.port)
+        self.assertIsNotNone(probe)
+        self.assertFalse(bridge._is_our_bridge(probe))
 
 
 if __name__ == "__main__":

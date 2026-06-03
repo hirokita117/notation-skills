@@ -23,6 +23,7 @@
 | `--permission-mode` | | `plan` | `claude --permission-mode`。 |
 | `--timeout` | | `180` | `claude` 呼び出しのタイムアウト秒。 |
 | `--no-session-continuity` | | （継続ON） | 会話継続を無効化し、質問ごとに独立した `claude` 起動に戻す。`claude --no-session-persistence` とは別物。 |
+| `--no-reclaim` | | （掃除ON） | 起動時に同ポートの古い repo-map ブリッジを自動停止**しない**。既定は ON（前回 Ctrl+C せず閉じて残った自分のブリッジを掃除してから bind）。 |
 
 > インストール済み Claude Code CLI（v2.1.161 で確認）の正しいフラグは **`--allowedTools`**
 > （`--tools` ではない）。`--max-turns` は当該バージョン未対応のため既定では付けない。CLI が
@@ -50,7 +51,7 @@ macOS は [`../scripts/open_repo_map_viewer.command`](../scripts/open_repo_map_v
 | メソッド | パス | 役割 |
 |----------|------|------|
 | GET | `/`, `/repo-map.html` | 配信中の HTML を返す |
-| GET | `/api/health` | 状態（repoRoot/html/dsl/claude 有無/フラグ/セッション）を JSON で返す |
+| GET | `/api/health` | 状態（service/pid/repoRoot/html/dsl/claude 有無/フラグ/セッション）を JSON で返す。`service`/`pid` は後続インスタンスの reclaim（本人確認）に使う |
 | POST | `/api/ask` | 質問を受けて `claude -p` を呼び、回答を JSON で返す（会話は継続） |
 | POST | `/api/reset` | 進行中の会話を破棄し、次の質問から新しい会話を始める。即返る（実行中 ask にブロックされない） |
 
@@ -132,5 +133,24 @@ session フラグは prompt より前に置く。
   これだけを取って即返る。`session_epoch` により、reset が実行中 ask に勝つ（古い ask は ID を上書きしない）。
 - **無効化**: `--no-session-continuity` で質問ごと独立に戻る。`claude --no-session-persistence` は
   resume と非互換なので **使わない**。
+
+## 起動時のポート確保（reclaim）
+
+ターミナルを Ctrl+C せずに閉じる等で、前回のブリッジが**孤児プロセス**としてポートを
+握ったまま残ることがある。起動時、新しいブリッジは bind の前に同ポートを点検し、
+**「自分のブリッジ」だけ**を停止してポートを空ける（`reclaim_port`）。
+
+- **本人確認**: `GET /api/health` を叩き、`Server` ヘッダ（全バージョンで
+  `repo-map-local-bridge/…`）または health JSON の `service == "repo-map-local-bridge"` で
+  自分のブリッジか判定する。PID は同じ health の `pid` から取得する。
+- **停止手順**: `SIGTERM` → 数秒待ってポートが解放されなければ `SIGKILL`。新ブリッジは
+  `SIGTERM` を捕まえて `server_close()` まで通す（穏当に終了）。
+- **別アプリは触らない**: ポートを握っているのが repo-map ブリッジでなければ**停止せず**、
+  「別ポートを指定して」と促して**起動を中止**する（無条件な kill はしない）。PID 不明の
+  古いブリッジも安全側で中止し、`pkill -f repo_map_local_bridge` を案内する。
+- **無効化**: `--no-reclaim` で点検・掃除をスキップ（ポートが塞がっていれば bind 失敗で中止）。
+
+> これは「閉じ忘れて孤児化したブリッジ」を次回起動が自動で片付けるための仕組み。
+> ゾンビ（defunct）ではなく**ポートを握ったまま動き続ける孤児**を対象にする。
 
 詳細な安全方針は [security.md](security.md)。
