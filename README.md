@@ -41,6 +41,55 @@
 
 ---
 
+## インストール
+
+### 推奨: Plugin として導入（Claude Code）
+
+このリポジトリは Claude Code の **plugin marketplace** として公開しています。2 コマンドで導入できます。
+
+```
+/plugin marketplace add hirokita117/notation-skills
+/plugin install notation-skills@notation-skills
+```
+
+導入後、3 つの Skill は名前空間付きで利用できます（例: `notation-skills:repo-map-notation`）。
+
+- 更新を取り込む: `/plugin marketplace update`
+- セッションに反映: `/reload-plugins`
+
+> 公開範囲について: このリポジトリは public ですが、plugin 化は中央レジストリへの登録ではありません。`/plugin marketplace add hirokita117/notation-skills` はこの GitHub リポジトリをクローンするだけで、検索カタログに自動掲載されることはありません。導入の手軽さが上がるだけで、到達範囲は通常の public リポジトリと同じです。
+
+### 代替: 手動コピー
+
+plugin 非対応の環境では、`skills/` 配下を直接配置しても使えます。
+
+- 個人用（全プロジェクト共通）: `~/.claude/skills/` にコピー
+- プロジェクト用（チーム共有）: 対象リポジトリの `.claude/skills/` にコピー
+
+---
+
+## メンテナンス（Skill を追加・修正したくなったら）
+
+変更は**すべて配布元であるこのリポジトリ側**で行います。インストールした利用者は、導入先のディレクトリ構成を意識する必要はありません。
+
+| やりたいこと | 操作 |
+|---|---|
+| Skill の中身を修正 | `skills/<name>/SKILL.md` や `references/` を編集 |
+| Skill を追加 | `skills/<new-skill>/SKILL.md` を作成（`skills/` は自動スキャンされるためマニフェスト編集は不要） |
+| 利用者へ反映 | `.claude-plugin/plugin.json` と `.claude-plugin/marketplace.json` の `version` を上げて push |
+
+`version` を明示しているため、利用者は **バージョンが上がったときだけ** 更新を受け取ります（意図しないタイミングで中身が変わりません）。
+
+利用者側の更新は次の操作だけです:
+
+```
+/plugin marketplace update
+/plugin install notation-skills@notation-skills   # または /plugin の UI で update
+/reload-plugins
+```
+
+---
+
 ## クイックスタート
 
 Skill 対応のエージェント（Claude Code など）にこれらを読み込ませた状態で、**2 段**で依頼します。
@@ -73,6 +122,9 @@ notation-skills/
 ├── README.md
 ├── LICENSE                         # MIT
 ├── SKILLS_MAP.md                   # 3 Skill の連携と「正本」の所在
+├── .claude-plugin/
+│   ├── plugin.json                 # プラグイン本体のマニフェスト
+│   └── marketplace.json            # このリポジトリを marketplace 化
 └── skills/
     ├── notation-core/              # 共通土台（思想・用語・原則）
     ├── repo-map-notation/          # DSL 生成（repo-map v1 の正式文法はここが正本）

@@ -1,0 +1,13 @@
+{
+  "name": "notation-skills",
+  "owner": { "name": "hirokita117" },
+  "description": "Notation-first design skills: repo-map v1 DSL generation, deterministic rendering, and shared core principles.",
+  "plugins": [
+    {
+      "name": "notation-skills",
+      "source": "./",
+      "description": "巨大リポジトリを repo-map v1 DSL（正本）に落として決定的に図化する 3 Skill 統合パック。",
+      "version": "1.0.0"
+    }
+  ]
+}
