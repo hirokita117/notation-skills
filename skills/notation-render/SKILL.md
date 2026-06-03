@@ -4,7 +4,7 @@ description: >
   notation（現時点は `repo-map v1` DSL）を、**DSL テキストだけ**を入力に、決定的に図へ変換する Skill。
   Render a notation DSL (currently `repo-map v1`) into a deterministic diagram — input is the DSL text ONLY.
   `parse → validate → layout → emit` の手順で、同じ DSL からは常に同じ図を出す。出力は SVG（既定・単一ファイル）、
-  HTML（SVG＋凡例）、任意で Mermaid。色・フォント・配置は固定テーマと固定アルゴリズムで決まり、
+  HTML（既定でクリック質問パネル付きのインタラクティブ Viewer・`data-*`＋凡例）、任意で Mermaid。色・フォント・配置は固定テーマと固定アルゴリズムで決まり、
   実行ごとにブレない。
   次のような発話で起動する:
   「この DSL を SVG にして」「repo-map を描画して」「notation を可視化して」「地図を HTML で見せて」
@@ -42,7 +42,7 @@ parse → validate → layout → emit
 ## 出力の優先順位
 
 1. **SVG**（既定）— 単一ファイル、埋め込み可能。まずこれを出す。
-2. **HTML** — SVG を埋め込み、凡例を付けたプレビュー用。
+2. **HTML**（既定でインタラクティブ Viewer）— SVG＋凡例に、ノードクリックで質問できる固定 UI（`data-*` 属性＋質問パネル＋固定スクリプト）を載せる。決定的（同じ DSL → 同じ HTML）。`data-*` スキーマは [repo-map-interactive-viewer/references/html-viewer-contract.md](../repo-map-interactive-viewer/references/html-viewer-contract.md) を参照。Claude Code CLI 呼び出し・Python ブリッジは [`repo-map-interactive-viewer`](../repo-map-interactive-viewer/SKILL.md) の責務（ここでは出さない）。
 3. **Mermaid**（任意）— `graph TD` への**機械的変換**。Mermaid は**正本にしない**（レイアウトは Mermaid 任せになり決定性の対象外）。
 
 Figma API / Figma Skill は**使わない**。出力先として人が後から SVG/HTML を貼るのは自由だが、この Skill は Figma を描画経路にしない。詳細は [references/output-formats.md](references/output-formats.md)。
@@ -73,5 +73,6 @@ Figma API / Figma Skill は**使わない**。出力先として人が後から 
 ## 関連スキル
 
 - [repo-map-notation](../repo-map-notation/SKILL.md) — 入力 DSL の供給元。不足は必ずここへ差し戻す。
+- [repo-map-interactive-viewer](../repo-map-interactive-viewer/SKILL.md) — 出力したインタラクティブ HTML を、ローカル Claude Code とつなぐ対話ビューア（CLI/ブリッジ側）。`data-*` の契約はここが正本。
 - [notation-core](../notation-core/SKILL.md) — 「レンダラーは DSL だけを読む」「決定的であれ」という原則の出どころ。
 - 連携全体は [SKILLS_MAP.md](../../SKILLS_MAP.md)。

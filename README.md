@@ -1,3 +1,11 @@
+# Acknowledgements
+
+- Inspired by: https://note.com/art_reflection/n/nccfe6cc57073
+
+このリポジトリは上記記事から着想を得ていますが、本リポジトリの DSL 仕様・文法・検証規則・レンダリング規約・文章はすべて hirokita117 が独自に書き起こしたものであり、記事に付属する Skill ZIP や export の再配布ではありません。
+
+---
+
 # notation-skills
 
 巨大なリポジトリを、**固定ルールの DSL（中間記法）を正本**にして地図化し、認知負荷を下げるための Agent Skills 集です。
@@ -25,16 +33,18 @@
 
 ---
 
-## 3 つの Skill と使い分け
+## 4 つの Skill と使い分け
 
 | # | Skill | 役割 | 入力 → 出力 |
 |---|-------|------|------------|
 | 1 | [`notation-core`](skills/notation-core/SKILL.md) | 記法中心設計（Notation-first design / MNP）の共通土台・用語・原則 | 設計判断 → 原則 |
 | 2 | [`repo-map-notation`](skills/repo-map-notation/SKILL.md) | リポジトリ構造を `repo-map v1` DSL に落とす（**DSL 生成のみ**） | リポジトリ → DSL テキスト |
 | 3 | [`notation-render`](skills/notation-render/SKILL.md) | DSL **だけ**を読んで図に変換（**決定的レンダリング**） | DSL テキスト → SVG / HTML |
+| ＋ | [`repo-map-interactive-viewer`](skills/repo-map-interactive-viewer/SKILL.md) | 生成済みインタラクティブ HTML をローカル Claude Code とつなぐ対話ビューア（**描画はしない**） | HTML ＋ クリック → ローカル Claude の回答 |
 
 - `repo-map-notation` は **DSL しか出しません**。Mermaid / Figma / SVG を直接は描きません。
-- `notation-render` は **DSL しか受け取りません**。自然言語の要望や口頭のレイアウトから直接 SVG を描くことはしません（不足があれば `repo-map-notation` に戻します）。
+- `notation-render` は **DSL しか受け取りません**。自然言語の要望や口頭のレイアウトから直接 SVG を描くことはしません（不足があれば `repo-map-notation` に戻します）。HTML は既定で `data-*`＋質問パネル付きの**インタラクティブ Viewer** を出します。
+- `repo-map-interactive-viewer` は**アドオン**です。生成済み HTML を `127.0.0.1` 限定の Python ブリッジで配信し、ノードをクリックしてローカル Claude Code に質問できるようにします（**完全ローカル・Node.js 不要・Python 標準ライブラリのみ**）。対話は読み取り専用で DSL 正本を変えません。
 - `notation-core` は、初めて触るときと、設計判断に迷ったときに読む土台です。毎回読む必要はありません。
 
 詳しい連携は [SKILLS_MAP.md](SKILLS_MAP.md) を参照してください。
@@ -54,7 +64,7 @@
 /plugin install notation-skills@notation-skills
 ```
 
-導入後、3 つの Skill は名前空間付きで使えます（例: `notation-skills:repo-map-notation`）。
+導入後、4 つの Skill は名前空間付きで使えます（例: `notation-skills:repo-map-notation`）。
 
 - 更新を取り込む: `/plugin marketplace update`
 - セッションに反映: `/reload-plugins`
@@ -153,31 +163,53 @@ Skill 対応のエージェント（Claude Code など）にこれらを読み�
 
 ---
 
+## インタラクティブ Viewer の使い方（ローカルで Claude Code に質問）
+
+生成した repo-map HTML を Chrome で開き、**ノードをクリックして、その箇所をローカルの Claude Code に質問**できます。完全にローカル用途で、外部サーバや社内 Git にはアップロードしません。**Node.js は不要**、Python は標準ライブラリのみ、裏側は `claude` CLI です。
+
+**2 つの方式があります。**
+
+| 方式 | 前提 | 動き |
+|------|------|------|
+| localhost bridge | ローカルで `claude` が使える | Python ブリッジが HTML を `http://127.0.0.1:17333/repo-map.html` で配信。`Ask Claude Code` → ローカル Claude が回答。 |
+| prompt copy | ブリッジを使わない／`file://` で開いた | `Copy prompt for Claude Code` でプロンプトを生成・コピー（不可なら textarea 表示）し、手元の Claude Code に貼る。 |
+
+**手順（bridge 方式）:**
+
+```
+# 1) repo-map-notation → notation-render でインタラクティブ HTML を生成しておく
+# 2) ブリッジを起動（macOS は .command をダブルクリックでも可）
+python3 skills/repo-map-interactive-viewer/scripts/repo_map_local_bridge.py \
+  --repo-root /path/to/your/repo \
+  --html      /path/to/generated/repo-map.html \
+  --port      17333
+# 3) http://127.0.0.1:17333/repo-map.html を開き、ノードをクリック → 質問 → Ask
+# 4) 停止は Ctrl+C
+```
+
+`file://` で HTML を直接開いた場合でも、**Copy prompt 方式は使えます**。詳細・契約・安全方針は
+[`repo-map-interactive-viewer`](skills/repo-map-interactive-viewer/SKILL.md) を参照してください。
+
+---
+
 ## ディレクトリ構成
 
 ```
 notation-skills/
 ├── README.md
 ├── LICENSE                         # MIT
-├── SKILLS_MAP.md                   # 3 Skill の連携と「正本」の所在
+├── SKILLS_MAP.md                   # Skill の連携と「正本」の所在
 ├── .claude-plugin/
 │   ├── plugin.json                 # プラグイン本体のマニフェスト
 │   └── marketplace.json            # このリポジトリを marketplace 化
 └── skills/
     ├── notation-core/              # 共通土台（思想・用語・原則）
     ├── repo-map-notation/          # DSL 生成（repo-map v1 の正式文法はここが正本）
-    └── notation-render/            # DSL → 図（決定的レンダリング）
+    ├── notation-render/            # DSL → 図（決定的レンダリング）
+    └── repo-map-interactive-viewer/ # 生成済み HTML をローカル Claude Code とつなぐ対話ビューア
 ```
 
 各 Skill は `SKILL.md`（本体）＋ `references/`（詳細）のプログレッシブ・ディスクロージャ構成です。
-
----
-
-## Acknowledgements
-
-- Inspired by: https://note.com/art_reflection/n/nccfe6cc57073
-
-This repository is **original work by hirokita117**, not a redistribution of the article's skill ZIP. 上記記事から着想を得ていますが、本リポジトリの DSL 仕様・文法・検証規則・レンダリング規約・文章はすべて hirokita117 が独自に書き起こしたものであり、記事に付属する Skill ZIP や export の再配布ではありません。
 
 ---
 

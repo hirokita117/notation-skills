@@ -11,13 +11,47 @@
 - `viewBox` はキャンバス幅・高さ（§座標）に合わせる。背景は `#FFFFFF`。
 - **これが決定的な正典**である。同じ DSL からは同じ SVG（同じ座標・同じ色）が出る。
 
-## 2. HTML（プレビュー用）
+## 2. HTML（既定でインタラクティブ Viewer）
 
-- 上記 SVG を**そのまま埋め込み**、**凡例**を添えた 1 枚の HTML。レビューや共有のプレビュー向け。
-- **凡例（固定マークアップ）**:
-  - kind 6 種の色見本と名前（system / package / module / file-group / external / datastore）。順序は [grammar.md §5](../../repo-map-notation/references/grammar.md) の列挙順に固定。
-  - 線種の説明: 「実線 = 構造（contains / deploys / owns）」「破線 = 依存（imports / calls / reads）」。
-- 凡例は DSL に依存しない固定要素（色・文言はテーマ定数どおり）。SVG 本体と凡例以外の装飾は足さない。
+HTML は **インタラクティブ Viewer を既定**として出す。SVG（§1）を埋め込み、固定の凡例に加えて、
+ノードクリックで詳細を見て質問できる最小 UI を**固定テンプレート**として載せた 1 枚の HTML。
+中身は次の 4 つ:
+
+1. **SVG 本体**＋各ノード `<g class="node">` への `data-*` 属性（`data-node-id` / `data-label` /
+   `data-kind` / `data-path` / `data-related-edges` / `data-dsl-excerpt`）。属性値は **DSL から
+   決定的に導出**する。スキーマと導出規則は
+   [repo-map-interactive-viewer/references/html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md)
+   を正本として参照する（ここでは再定義しない）。
+2. **凡例（固定マークアップ・DSL 非依存）**:
+   - kind 6 種の色見本と名前（system / package / module / file-group / external / datastore）。順序は [grammar.md §5](../../repo-map-notation/references/grammar.md) の列挙順に固定。
+   - 線種の説明: 「実線 = 構造（contains / deploys / owns）」「破線 = 依存（imports / calls / reads）」。
+3. **質問サイドパネル（固定マークアップ）**: クリックしたノードの id / label / kind / path /
+   related edges / DSL excerpt と、質問入力欄＋`Ask Claude Code`／`Copy prompt for Claude Code` ボタン。
+   bridge モードではさらに **model / effort 選択 `<select>`**（先頭が `(default)`。選択肢は `/api/health` の
+   `availableModels` / `availableEfforts` から動的に埋め、初期選択は `defaultModel` / `defaultEffort`。
+   copy フォールバック時は非表示）、**送信中スピナー（CSS アニメーションのみ）**、回答を **Markdown として
+   描画する領域** を持つ。
+4. **固定の inline スクリプト**: クリック→パネル表示、`127.0.0.1` 配信時は `/api/ask` に POST（`model`/`effort` は
+   許可リスト内・空なら省略して付与）、それ以外（`file://` 等）は **プロンプトコピー方式にフォールバック**
+   （クリップボード不可なら textarea 表示）。bridge モードでは質問は同じ会話として継続し、任意で「新しい会話」
+   （`/api/reset`）UI を含めてよい（契約上 optional・無くても適合）。回答 Markdown は **インライン実装の自己完結
+   レンダラ**（CDN/外部ライブラリ不使用・HTML エスケープ後にサブセット描画）で表示し、送信中はスピナーを出して
+   完了/失敗で隠す。**本物のトークンストリーミングはしない**（将来オプション）。リクエスト JSON 形・health キーは
+   [html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md) を正本として参照する。
+
+**決定性は保つ。** パネル・スクリプト・CSS・凡例はすべて**固定テンプレート**（テーマ定数どおり）で、
+`data-*` の値だけが DSL から決まる。model / effort セレクトの**選択肢は実行時に `/api/health` から充填**し
+ファイルには焼かないので、HTML ファイル本体（markup / CSS / スクリプト / Markdown レンダラ）は固定のまま。
+よって **同じ DSL → 同じ HTML**。乱数・時刻・気分は持ち込まない。
+SVG（§1）は引き続き**決定的な正典**で、HTML はそれを使う派生物。
+
+**責務の外**: Claude Code CLI 呼び出し・Python ブリッジ本体・起動手順は **この Skill の責務ではない**。
+それらは [`repo-map-interactive-viewer`](../../repo-map-interactive-viewer/SKILL.md) が担当する。
+ここは「契約どおりの HTML を決定的に出す」までで止める。最小実装例は
+[repo-map-interactive-viewer/examples/repo-map.html](../../repo-map-interactive-viewer/examples/repo-map.html)。
+
+**プレーン版**: パネル・スクリプト無しの「SVG＋凡例だけ」の静的 HTML が欲しいと**明示要求された場合のみ**、
+上記 1〜2 だけを出す（`data-*` は付けても害はないが、UI は足さない）。
 
 ## 3. Mermaid（任意・正本にしない）
 
