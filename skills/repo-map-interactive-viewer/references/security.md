@@ -18,7 +18,10 @@
   relatedEdges / dslExcerpt）。ツール名・CLI フラグ・コマンド文字列は **一切渡せない**。
 - **`claude` の argv はブリッジ側が固定フラグで組み立てる。** 呼び出しは安全寄り:
   `--permission-mode plan` ＋ `--allowedTools Read,Glob,Grep`。
-- **`--dangerously-skip-permissions` は使わない。**
+- **セッション ID はサーバ生成（`uuid4`）。** HTML からは設定・注入できない。`/api/ask` は client の
+  `sessionId` / `session_id` を無視し、`--session-id` / `--resume` には**ブリッジ自身が生成した ID のみ**を渡す。
+  HTML にできるのは `/api/reset`（パラメータ無し）の起動だけ。「HTML からフラグを渡せない」不変条件は保たれる。
+- **`--dangerously-skip-permissions` は使わない。** `--no-session-persistence` も使わない（resume と非互換）。
 - 回答方針プロンプトでも「ファイル編集・生成・削除をしない」と明示する（多層防御）。
 
 ## 3. パスはリポジトリルートに閉じ込める
@@ -38,6 +41,8 @@
 
 - 想定: 同一マシン上の悪意あるページが localhost API を叩く → Host チェック＋固定フラグ＋
   ジェイルで影響を限定。
+- `/api/reset` は同一マシンの悪意あるページが会話をリセットし得る（低リスク・上記の脅威モデルの範囲内。
+  会話の中身は漏れず、ファイルへの影響もない）。
 - **非対応（設計外）**: リモート公開、マルチユーザー、認証つき共有。これらが必要なら別設計にする。
   このブリッジは loopback 限定の個人補助に徹する。
 

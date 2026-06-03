@@ -5,6 +5,8 @@
   * 生成済みの repo-map HTML を 127.0.0.1 限定で配信する。
   * HTML から送られたノード情報＋質問を Claude Code 用プロンプトに整形する。
   * `claude -p` を subprocess で呼び、回答を JSON で返す。
+  * 同一起動中の質問を 1 つの Claude 会話として継続する（サーバ生成 UUID を持ち回り、
+    1 ターン目 --session-id、以降 --resume）。claude は毎回起動・即終了で常駐しない。
 
 設計上の境界:
   * 描画はしない（notation-render の責務）。HTML は受け取って配信するだけ。
@@ -15,8 +17,9 @@
   * shell=True は使わない（argv リストで subprocess.run）。
   * HTML からは固定 JSON フィールドのみ受け取り、ツール/フラグ/コマンドは渡せない。
   * `claude` の argv はブリッジ側が固定フラグセットで組み立てる。
+  * セッション ID はサーバ生成（uuid4）。HTML からは設定・注入できない（reset 起動のみ可）。
   * パス系フィールドは repo-root 配下に realpath ジェイルする。
-  * --dangerously-skip-permissions は使わない。
+  * --dangerously-skip-permissions は使わない。--no-session-persistence も使わない（resume と非互換）。
 
 標準ライブラリのみ。Python 3 系（python3 / python）で動く。
 """
@@ -29,6 +32,8 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
+import uuid
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -58,6 +63,7 @@ class BridgeConfig:
     allowed_tools: str
     permission_mode: str
     timeout: float
+    session_continuity: bool = True
 
 
 # --- パス・ジェイル ----------------------------------------------------------
@@ -123,11 +129,17 @@ def build_claude_argv(
     permission_mode: str = DEFAULT_PERMISSION_MODE,
     allowed_tools: str = DEFAULT_ALLOWED_TOOLS,
     model: str | None = None,
+    session_id: str | None = None,
+    resume: bool = False,
 ) -> list[str]:
     """安全寄りの固定フラグセットで claude の argv を組み立てる。
 
     --allowedTools は可変長オプションなので、prompt 位置引数を飲み込まないよう
     カンマ形の単一値で最後に置く。--dangerously-skip-permissions は決して付けない。
+
+    session_id を渡すと会話を継続する: 初回は --session-id（その UUID で新規会話）、
+    以降は resume=True で --resume（既存会話を継続）。session_id が空のときは
+    どちらも付けない（bare --resume は対話ピッカーで hang し得るため絶対に出さない）。
     """
     argv = [
         executable,
@@ -137,6 +149,8 @@ def build_claude_argv(
     ]
     if model:
         argv += ["--model", model]
+    if session_id:
+        argv += (["--resume", session_id] if resume else ["--session-id", session_id])
     argv += [prompt, "--allowedTools", allowed_tools]
     return argv
 
@@ -169,8 +183,18 @@ def parse_claude_output(stdout: str):
     return text, data
 
 
-def run_claude(prompt: str, config: BridgeConfig) -> dict:
-    """claude を呼んで {ok, answer, raw} か {ok:false, error, detail} を返す。"""
+def run_claude(
+    prompt: str,
+    config: BridgeConfig,
+    *,
+    session_id: str | None = None,
+    resume: bool = False,
+) -> dict:
+    """claude を呼んで {ok, answer, raw} か {ok:false, error, detail} を返す。
+
+    session_id / resume は build_claude_argv へ素通し（会話継続用）。返り値の形は
+    継続有無に関わらず一定（セッション状態はサーバ側 BridgeServer が保持・管理する）。
+    """
     executable = resolve_claude(config.claude_bin)
     if not executable:
         return {
@@ -186,6 +210,8 @@ def run_claude(prompt: str, config: BridgeConfig) -> dict:
         permission_mode=config.permission_mode,
         allowed_tools=config.allowed_tools,
         model=config.claude_model,
+        session_id=session_id,
+        resume=resume,
     )
 
     try:
@@ -272,7 +298,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
             self._serve_html()
         elif path == "/api/health":
             self._serve_health()
-        elif path == "/api/ask":
+        elif path in ("/api/ask", "/api/reset"):
             self._send_json(405, {"ok": False, "error": "method not allowed (use POST)"})
         else:
             self._send_json(404, {"ok": False, "error": "not found"})
@@ -283,6 +309,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/ask":
             self._handle_ask()
+        elif path == "/api/reset":
+            self._handle_reset()
         else:
             self._send_json(404, {"ok": False, "error": "not found"})
 
@@ -298,6 +326,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self._send_bytes(200, "text/html; charset=utf-8", body)
 
     def _serve_health(self):
+        # セッション欄はロックなしの best-effort 読み（表示用なので多少 stale でも可）。
         self._send_json(200, {
             "ok": True,
             "repoRoot": self.config.repo_root,
@@ -306,6 +335,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
             "claude": bool(resolve_claude(self.config.claude_bin)),
             "permissionMode": self.config.permission_mode,
             "allowedTools": self.config.allowed_tools,
+            "sessionContinuity": getattr(self.server, "session_continuity", True),
+            "sessionId": getattr(self.server, "session_id", None),
         })
 
     def _handle_ask(self):
@@ -331,9 +362,63 @@ class BridgeHandler(BaseHTTPRequestHandler):
             return
 
         prompt = build_prompt(cleaned)
-        result = run_claude(prompt, self.config)
+        result = self._run_claude_with_session(prompt)
         status = 200 if result.get("ok") else 502
         self._send_json(status, result)
+
+    def _run_claude_with_session(self, prompt: str) -> dict:
+        """セッション継続を管理しつつ claude を呼ぶ。
+
+        - 継続 OFF: 毎回まっさらな claude（従来挙動）。
+        - 継続 ON: サーバ生成 UUID を持ち回り、初回 --session-id / 以降 --resume。
+          既存会話の resume に失敗したら、新 UUID で fresh 起動を 1 回だけ再試行する
+          （ハードエラーにせず、会話がリセットされた扱いで ok:true を返し得る）。
+
+        claude_lock で subprocess を直列化し、同一セッション ID への同時書き込みによる
+        破損を防ぐ（単一ユーザー前提なので待ちは稀）。state_lock は session_id/epoch の
+        読み書きのみを保護する短時間ロックで、/api/reset がここにブロックされないようにする。
+        """
+        srv = self.server
+        if not getattr(srv, "session_continuity", True):
+            with srv.claude_lock:
+                return run_claude(prompt, self.config)
+
+        with srv.claude_lock:
+            with srv.state_lock:
+                sid = srv.session_id
+                start_epoch = srv.session_epoch
+            is_new = sid is None
+            if is_new:
+                sid = str(uuid.uuid4())
+            result = run_claude(prompt, self.config, session_id=sid, resume=not is_new)
+            if not result.get("ok") and not is_new:
+                # 既存会話の resume に失敗 → 新しい会話として 1 回だけやり直す
+                sid = str(uuid.uuid4())
+                result = run_claude(prompt, self.config, session_id=sid, resume=False)
+            with srv.state_lock:
+                if srv.session_epoch == start_epoch:  # 途中で reset されていなければ反映
+                    srv.session_id = sid if result.get("ok") else None
+            return result
+
+    def _handle_reset(self):
+        """会話をリセットし、次の質問から新しい Claude 会話を始める。
+
+        state_lock のみを取得して即返すので、実行中の ask（claude_lock 保持）に
+        ブロックされない。session_epoch を進めるため、進行中の ask は完了時に自分の
+        session_id を反映しない（reset を優先する）。
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > MAX_BODY_BYTES:
+            self.close_connection = True
+            self._send_json(413, {"ok": False, "error": "リクエストが大きすぎます。"})
+            return
+        if length > 0:
+            self.rfile.read(length)  # ボディは使わないが、接続を汚さないよう読み捨てる
+        srv = self.server
+        with srv.state_lock:
+            srv.session_id = None
+            srv.session_epoch += 1
+        self._send_json(200, {"ok": True, "sessionContinuity": getattr(srv, "session_continuity", True)})
 
     # --- 補助 ---
 
@@ -362,6 +447,25 @@ class BridgeHandler(BaseHTTPRequestHandler):
         sys.stderr.write("[bridge] %s\n" % (fmt % args))
 
 
+# --- サーバ（会話セッション状態を保持） --------------------------------------
+
+class BridgeServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer に Claude 会話セッションの状態を持たせたもの。
+
+    session_id はサーバ生成の UUID（HTML からは設定・注入できない）。claude_lock は
+    subprocess の直列化用、state_lock は session_id/epoch の短時間保護用。session_epoch は
+    reset と実行中 ask の競合を解く世代番号（reset で +1 され、古い ask の上書きを無効化する）。
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.state_lock = threading.Lock()
+        self.claude_lock = threading.Lock()
+        self.session_id = None
+        self.session_epoch = 0
+        self.session_continuity = True
+
+
 # --- 起動 --------------------------------------------------------------------
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -381,6 +485,9 @@ def parse_args(argv=None) -> argparse.Namespace:
                         help=f"claude --permission-mode（既定 {DEFAULT_PERMISSION_MODE}）")
     parser.add_argument("--timeout", type=float, default=DEFAULT_CLAUDE_TIMEOUT,
                         help=f"claude 呼び出しのタイムアウト秒（既定 {DEFAULT_CLAUDE_TIMEOUT}）")
+    parser.add_argument("--no-session-continuity", action="store_true",
+                        help="会話継続を無効化し、質問ごとに独立した claude 起動に戻す"
+                             "（既定は継続 ON。claude --no-session-persistence とは別物）")
     return parser.parse_args(argv)
 
 
@@ -409,16 +516,19 @@ def build_config(args: argparse.Namespace) -> BridgeConfig:
         allowed_tools=args.allowed_tools,
         permission_mode=args.permission_mode,
         timeout=args.timeout,
+        session_continuity=not args.no_session_continuity,
     )
 
 
 def serve(config: BridgeConfig):
-    server = ThreadingHTTPServer(("127.0.0.1", config.port), BridgeHandler)
+    server = BridgeServer(("127.0.0.1", config.port), BridgeHandler)
     server.bridge_config = config  # type: ignore[attr-defined]
+    server.session_continuity = config.session_continuity
     url = f"http://127.0.0.1:{config.port}/repo-map.html"
     sys.stderr.write(f"[bridge] listening on {url}\n")
     sys.stderr.write(f"[bridge] repo-root: {config.repo_root}\n")
     sys.stderr.write(f"[bridge] claude: {'found' if resolve_claude(config.claude_bin) else 'NOT FOUND'}\n")
+    sys.stderr.write(f"[bridge] session continuity: {'on' if config.session_continuity else 'off'}\n")
     sys.stderr.write("[bridge] stop with Ctrl+C\n")
     try:
         server.serve_forever()

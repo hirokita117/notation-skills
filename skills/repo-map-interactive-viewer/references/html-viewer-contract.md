@@ -65,8 +65,12 @@ web core imports
 ### `GET /api/health`
 ```json
 { "ok": true, "repoRoot": "...", "html": "...", "dsl": "... or null",
-  "claude": true, "permissionMode": "plan", "allowedTools": "Read,Glob,Grep" }
+  "claude": true, "permissionMode": "plan", "allowedTools": "Read,Glob,Grep",
+  "sessionContinuity": true, "sessionId": "... or null" }
 ```
+
+`sessionContinuity` は継続が有効か、`sessionId` は進行中の会話 ID（未開始なら `null`）。
+どちらも **best-effort**（表示用。厳密な同期は保証しない）。
 
 ### `POST /api/ask`
 リクエスト JSON（HTML から送る固定フィールドのみ）:
@@ -98,6 +102,25 @@ web core imports
 - `question` は **必須・非空**。欠如/空は `400` ＋ `ok:false`。
 - `path` は repo-root 配下のみ許可（外なら拒否）。
 - ボディ上限・各フィールド長上限あり（[security.md](security.md)）。
+- **client が送った `sessionId` / `session_id` は無視する**。会話 ID はサーバ生成（後述）。
+
+### `POST /api/reset`
+進行中の会話を破棄し、次の質問から新しい Claude 会話を始める。リクエストボディは無視（送っても可・上限ガードあり）。
+
+```json
+{ "ok": true, "sessionContinuity": true }
+```
+
+冪等。実行中の `/api/ask` に**ブロックされず即返る**（リセットが進行中 ask に勝つ）。
+
+### セッション継続（重要）
+
+- 同一ブリッジ起動中の質問は、既定で **1 つの Claude 会話として継続**する。
+- 継続は **サーバ管理**: ブリッジが UUID を 1 本生成し、初回 `--session-id <uuid>`、以降 `--resume <uuid>`
+  で `claude -p` を呼ぶ。`claude` は質問のたびに起動・即終了で常駐しない。
+- **リクエスト JSON は不変**（送るのは従来の固定フィールドのみ）。会話 ID は HTML から設定・注入できない
+  （`/api/reset` で**リセットを起動できる**だけ）。これがセキュリティ不変条件。
+- 継続は `--no-session-continuity` 起動で無効化でき、その場合は質問ごとに独立した会話になる。
 
 ---
 
@@ -124,6 +147,12 @@ HTML 側 `buildPrompt` は、ブリッジ側 `build_prompt`（[local-bridge.md](
 - 質問入力欄（textarea）
 - **Ask Claude Code** ボタン（bridge モード）
 - **Copy prompt for Claude Code** ボタン（常時）
+
+任意（optional・bridge モードのみ。無くても契約適合）:
+
+- **新しい会話**ボタン（`POST /api/reset`）と、会話継続の状態インジケータ。
+  リクエスト JSON は不変なので、付けても付けなくても既存の生成 HTML はそのまま動く。
+- 表示の同期は `GET /api/health` の `sessionContinuity` / `sessionId` を参照してよい（best-effort）。
 
 凡例（kind の色・線種）は DSL 非依存の固定マークアップ。最小実装の参照は
 [`../examples/repo-map.html`](../examples/repo-map.html)。

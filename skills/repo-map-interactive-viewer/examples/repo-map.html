@@ -48,6 +48,7 @@
   button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   button:disabled { opacity: .5; cursor: not-allowed; }
   .status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
+  .session { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
   pre.answer { font-family: var(--font); font-size: 13px; white-space: pre-wrap; word-break: break-word;
     background: #F9FAFB; border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-top: 8px; }
   textarea#prompt-fallback { width: 100%; min-height: 140px; font-family: var(--mono); font-size: 12px; margin-top: 8px;
@@ -148,8 +149,10 @@
       <textarea id="question" placeholder="このノードについて聞きたいことを入力…"></textarea>
       <div class="actions">
         <button class="primary" id="btn-ask">Ask Claude Code</button>
+        <button id="btn-reset" style="display:none">新しい会話</button>
         <button id="btn-copy">Copy prompt for Claude Code</button>
       </div>
+      <div class="session" id="session-line"></div>
       <div class="status" id="status"></div>
       <pre class="answer" id="answer" style="display:none"></pre>
       <textarea id="prompt-fallback" readonly></textarea>
@@ -167,6 +170,28 @@
   document.getElementById("mode-line").textContent =
     isBridge ? "mode: localhost bridge（Ask でローカル Claude Code に質問できます）"
              : "mode: copy フォールバック（ブリッジ未起動／file://。プロンプトをコピーして Claude Code に貼ってください）";
+
+  // 会話継続の状態表示（continuity はサーバ側でグローバルに管理。ノード切替では継続したまま）
+  var sessionLine = document.getElementById("session-line");
+  function setSessionLine(text) { sessionLine.textContent = text || ""; }
+
+  var MSG_NOT_STARTED = "会話: まだ開始していません（質問すると同じ会話として継続します）";
+  var MSG_CONTINUING = "会話: 継続中（次の質問も同じ文脈で続きます。別ノードでも継続）";
+
+  // bridge モードのみ「新しい会話」を出し、現在の会話状態を /api/health から拾って表示する
+  if (isBridge) {
+    document.getElementById("btn-reset").style.display = "";
+    fetch("/api/health").then(function (r) { return r.json(); }).then(function (h) {
+      if (h && h.sessionContinuity === false) {
+        setSessionLine("会話: 継続オフ（質問ごとに独立。--no-session-continuity で起動中）");
+        document.getElementById("btn-reset").style.display = "none";
+      } else if (h && h.sessionId) {
+        setSessionLine(MSG_CONTINUING);
+      } else {
+        setSessionLine(MSG_NOT_STARTED);
+      }
+    }).catch(function () { setSessionLine(MSG_NOT_STARTED); });
+  }
 
   var selected = null; // 直近にクリックしたノードの dataset
 
@@ -253,6 +278,34 @@
     }
   }
 
+  // Ask 中は Ask と「新しい会話」を両方ロック（実行中の会話を途中でリセットさせない）
+  function setBusy(busy) {
+    document.getElementById("btn-ask").disabled = busy;
+    var br = document.getElementById("btn-reset");
+    if (br) br.disabled = busy;
+  }
+
+  function doReset() {
+    if (!isBridge) return;
+    var br = document.getElementById("btn-reset");
+    br.disabled = true;
+    document.getElementById("status").textContent = "会話をリセット中…";
+    fetch("/api/reset", { method: "POST" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        br.disabled = false;
+        if (j && j.ok) {
+          setSessionLine("新しい会話を開始しました（次の質問から新しい会話）");
+          document.getElementById("status").textContent = "会話をリセットしました。";
+        } else {
+          document.getElementById("status").textContent = "リセットに失敗しました。";
+        }
+      }).catch(function (err) {
+        br.disabled = false;
+        document.getElementById("status").textContent = "リセットに接続できませんでした（" + err + "）。";
+      });
+  }
+
   function doAsk() {
     var p = nodePayload();
     if (!p) return;
@@ -268,7 +321,7 @@
 
     var body = Object.assign({ question: question }, p);
     document.getElementById("status").textContent = "ローカル Claude Code に問い合わせ中…（数十秒かかることがあります）";
-    document.getElementById("btn-ask").disabled = true;
+    setBusy(true);
 
     fetch("/api/ask", {
       method: "POST",
@@ -276,12 +329,13 @@
       body: JSON.stringify(body)
     }).then(function (r) { return r.json().then(function (j) { return { status: r.status, json: j }; }); })
       .then(function (res) {
-        document.getElementById("btn-ask").disabled = false;
+        setBusy(false);
         var ans = document.getElementById("answer");
         if (res.json && res.json.ok) {
           ans.textContent = res.json.answer || "(空の回答)";
           ans.style.display = "block";
           document.getElementById("status").textContent = "回答が返りました。";
+          setSessionLine(MSG_CONTINUING);
         } else {
           var msg = (res.json && res.json.error) ? res.json.error : ("HTTP " + res.status);
           var detail = (res.json && res.json.detail) ? ("\n\n" + res.json.detail) : "";
@@ -290,7 +344,7 @@
           document.getElementById("status").textContent = "失敗しました。Copy prompt 方式も使えます。";
         }
       }).catch(function (err) {
-        document.getElementById("btn-ask").disabled = false;
+        setBusy(false);
         var prompt = buildPrompt(p, question);
         showFallbackPrompt(prompt, "ブリッジに接続できませんでした（" + err + "）。下のプロンプトをコピーしてください。");
       });
@@ -303,6 +357,7 @@
   }
   document.getElementById("btn-ask").addEventListener("click", doAsk);
   document.getElementById("btn-copy").addEventListener("click", doCopy);
+  document.getElementById("btn-reset").addEventListener("click", doReset);
 })();
 </script>
 </body>

@@ -29,6 +29,8 @@ HTML は **インタラクティブ Viewer を既定**として出す。SVG（§
    related edges / DSL excerpt と、質問入力欄＋`Ask Claude Code`／`Copy prompt for Claude Code` ボタン。
 4. **固定の inline スクリプト**: クリック→パネル表示、`127.0.0.1` 配信時は `/api/ask` に POST、
    それ以外（`file://` 等）は **プロンプトコピー方式にフォールバック**（クリップボード不可なら textarea 表示）。
+   bridge モードでは質問は同じ会話として継続し、任意で「新しい会話」（`/api/reset`）UI を含めてよい
+   （契約上 optional・無くても適合。リクエスト JSON は不変）。
 
 **決定性は保つ。** パネル・スクリプト・CSS・凡例はすべて**固定テンプレート**（テーマ定数どおり）で、
 `data-*` の値だけが DSL から決まる。よって **同じ DSL → 同じ HTML**。乱数・時刻・気分は持ち込まない。
