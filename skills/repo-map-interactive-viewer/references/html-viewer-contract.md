@@ -66,14 +66,19 @@ web core imports
 ```json
 { "ok": true, "repoRoot": "...", "html": "...", "dsl": "... or null",
   "claude": true, "permissionMode": "plan", "allowedTools": "Read,Glob,Grep",
-  "sessionContinuity": true, "sessionId": "... or null" }
+  "sessionContinuity": true, "sessionId": "... or null",
+  "availableModels": ["opus","sonnet","haiku"],
+  "availableEfforts": ["low","medium","high","xhigh","max"],
+  "defaultModel": "sonnet or null", "defaultEffort": "medium or null" }
 ```
 
 `sessionContinuity` は継続が有効か、`sessionId` は進行中の会話 ID（未開始なら `null`）。
 どちらも **best-effort**（表示用。厳密な同期は保証しない）。
+`availableModels` はサーバ `--models` 由来のモデル許可リスト、`availableEfforts` は CLI 固定の effort 列挙。
+`defaultModel` / `defaultEffort` は UI セレクトの初期選択（`null` なら `(default)`）。HTML はこれらでセレクトを構築する。
 
 ### `POST /api/ask`
-リクエスト JSON（HTML から送る固定フィールドのみ）:
+リクエスト JSON（HTML から送るのは固定フィールド＋許可リストで縛った任意の `model`/`effort` のみ）:
 
 ```json
 {
@@ -83,15 +88,26 @@ web core imports
   "kind": "package",
   "path": "apps/web",
   "relatedEdges": "monorepo web contains\nweb core imports",
-  "dslExcerpt": "web package \"Web App\" apps/web\nmonorepo web contains\nweb core imports"
+  "dslExcerpt": "web package \"Web App\" apps/web\nmonorepo web contains\nweb core imports",
+  "model": "opus",
+  "effort": "high"
 }
 ```
+
+`model` / `effort` は **任意・許可リスト限定**。`model` は `/api/health` の `availableModels` のいずれか、
+`effort` は `low/medium/high/xhigh/max` のいずれか。**省略または空文字なら対応する CLI フラグを付けない**（`(default)`）。
+許可外の値は `400` ＋ `ok:false`。これら 2 つ以外の未知キーは従来どおり無視。これは「固定フィールドのみ」
+契約の **意図的で限定的な緩和**（2 列挙フィールド）であり、セッション ID 不変条件には影響しない
+（client の `sessionId`/`session_id` は依然無視）。詳細は [security.md](security.md)。
 
 成功レスポンス:
 
 ```json
 { "ok": true, "answer": "…日本語の回答…", "raw": { /* claude --output-format json の生データ */ } }
 ```
+
+`answer` は **Markdown**。HTML 側はそれを**自己完結のインラインレンダラ**（CDN/外部ライブラリ不使用・
+HTML エスケープ後にサブセットを描画）で HTML 描画する。失敗レスポンスの `error`/`detail` は素のテキストで表示する。
 
 失敗レスポンス（HTML 側でそのまま表示できる）:
 
@@ -153,6 +169,9 @@ HTML 側 `buildPrompt` は、ブリッジ側 `build_prompt`（[local-bridge.md](
 - **新しい会話**ボタン（`POST /api/reset`）と、会話継続の状態インジケータ。
   リクエスト JSON は不変なので、付けても付けなくても既存の生成 HTML はそのまま動く。
 - 表示の同期は `GET /api/health` の `sessionContinuity` / `sessionId` を参照してよい（best-effort）。
+- **model / effort 選択 `<select>`**（`/api/health` の `availableModels` / `availableEfforts` から構築、
+  初期選択は `defaultModel` / `defaultEffort`。copy モードでは非表示）。送信中の **ローディング表示（スピナー等）**。
+- 回答の **Markdown 描画**（自己完結インラインレンダラ・CDN 不使用）。最小実装は example 参照。
 
 凡例（kind の色・線種）は DSL 非依存の固定マークアップ。最小実装の参照は
 [`../examples/repo-map.html`](../examples/repo-map.html)。

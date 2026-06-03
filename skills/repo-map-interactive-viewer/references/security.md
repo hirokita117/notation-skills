@@ -14,8 +14,15 @@
 ## 2. 任意コマンド実行をさせない
 
 - **`shell=True` を使わない。** `claude` は **argv のリスト**で `subprocess.run` する。
-- **HTML から渡せるのは固定 JSON フィールドのみ**（question / nodeId / label / kind / path /
-  relatedEdges / dslExcerpt）。ツール名・CLI フラグ・コマンド文字列は **一切渡せない**。
+- **HTML から渡せるのは固定 JSON フィールド**（question / nodeId / label / kind / path /
+  relatedEdges / dslExcerpt）**＋ サーバ許可リストで縛った 2 つの列挙フィールド `model` / `effort`** のみ。
+  ツール名・任意の CLI フラグ・コマンド文字列は **一切渡せない**。
+- **`model` / `effort` は値であってフラグではない。** client は `"opus"` / `"high"` のような *値* を送り、
+  ブリッジがサーバ定義の許可リスト（`--models` 由来の `allowed_models`、CLI 固定の `low/medium/high/xhigh/max`）と
+  **完全一致**で照合する。許可外は `400` で拒否し subprocess を起動しない。許可された値だけが
+  `["--model", v]` / `["--effort", v]` の **単一 argv 要素**として渡る（`shell=True` は依然使わない）。
+  これは「HTML からフラグを渡せない」不変条件の **限定的で意図的な緩和**であり、2 列挙フィールドに閉じている。
+  **新しいツール・権限は増えない**（`--permission-mode plan` ＋ `--allowedTools` は不変）。
 - **`claude` の argv はブリッジ側が固定フラグで組み立てる。** 呼び出しは安全寄り:
   `--permission-mode plan` ＋ `--allowedTools Read,Glob,Grep`。
 - **セッション ID はサーバ生成（`uuid4`）。** HTML からは設定・注入できない。`/api/ask` は client の
@@ -43,6 +50,8 @@
   ジェイルで影響を限定。
 - `/api/reset` は同一マシンの悪意あるページが会話をリセットし得る（低リスク・上記の脅威モデルの範囲内。
   会話の中身は漏れず、ファイルへの影響もない）。
+- `model` / `effort` を client が選べる点も、列挙許可リストで縛られているため任意実行に繋がらない。
+  悪用しても「より高価なモデルで計算を浪費する」程度で、同一マシン脅威モデルの範囲内。
 - **非対応（設計外）**: リモート公開、マルチユーザー、認証つき共有。これらが必要なら別設計にする。
   このブリッジは loopback 限定の個人補助に徹する。
 

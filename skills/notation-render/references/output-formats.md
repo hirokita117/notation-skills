@@ -27,13 +27,22 @@ HTML は **インタラクティブ Viewer を既定**として出す。SVG（§
    - 線種の説明: 「実線 = 構造（contains / deploys / owns）」「破線 = 依存（imports / calls / reads）」。
 3. **質問サイドパネル（固定マークアップ）**: クリックしたノードの id / label / kind / path /
    related edges / DSL excerpt と、質問入力欄＋`Ask Claude Code`／`Copy prompt for Claude Code` ボタン。
-4. **固定の inline スクリプト**: クリック→パネル表示、`127.0.0.1` 配信時は `/api/ask` に POST、
-   それ以外（`file://` 等）は **プロンプトコピー方式にフォールバック**（クリップボード不可なら textarea 表示）。
-   bridge モードでは質問は同じ会話として継続し、任意で「新しい会話」（`/api/reset`）UI を含めてよい
-   （契約上 optional・無くても適合。リクエスト JSON は不変）。
+   bridge モードではさらに **model / effort 選択 `<select>`**（先頭が `(default)`。選択肢は `/api/health` の
+   `availableModels` / `availableEfforts` から動的に埋め、初期選択は `defaultModel` / `defaultEffort`。
+   copy フォールバック時は非表示）、**送信中スピナー（CSS アニメーションのみ）**、回答を **Markdown として
+   描画する領域** を持つ。
+4. **固定の inline スクリプト**: クリック→パネル表示、`127.0.0.1` 配信時は `/api/ask` に POST（`model`/`effort` は
+   許可リスト内・空なら省略して付与）、それ以外（`file://` 等）は **プロンプトコピー方式にフォールバック**
+   （クリップボード不可なら textarea 表示）。bridge モードでは質問は同じ会話として継続し、任意で「新しい会話」
+   （`/api/reset`）UI を含めてよい（契約上 optional・無くても適合）。回答 Markdown は **インライン実装の自己完結
+   レンダラ**（CDN/外部ライブラリ不使用・HTML エスケープ後にサブセット描画）で表示し、送信中はスピナーを出して
+   完了/失敗で隠す。**本物のトークンストリーミングはしない**（将来オプション）。リクエスト JSON 形・health キーは
+   [html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md) を正本として参照する。
 
 **決定性は保つ。** パネル・スクリプト・CSS・凡例はすべて**固定テンプレート**（テーマ定数どおり）で、
-`data-*` の値だけが DSL から決まる。よって **同じ DSL → 同じ HTML**。乱数・時刻・気分は持ち込まない。
+`data-*` の値だけが DSL から決まる。model / effort セレクトの**選択肢は実行時に `/api/health` から充填**し
+ファイルには焼かないので、HTML ファイル本体（markup / CSS / スクリプト / Markdown レンダラ）は固定のまま。
+よって **同じ DSL → 同じ HTML**。乱数・時刻・気分は持ち込まない。
 SVG（§1）は引き続き**決定的な正典**で、HTML はそれを使う派生物。
 
 **責務の外**: Claude Code CLI 呼び出し・Python ブリッジ本体・起動手順は **この Skill の責務ではない**。

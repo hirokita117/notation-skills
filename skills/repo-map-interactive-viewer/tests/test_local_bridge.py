@@ -33,7 +33,8 @@ _spec.loader.exec_module(bridge)
 FAKE_CLAUDE = "/nonexistent/claude-bin-for-tests-xyz"
 
 
-def make_config(repo_root, html=EXAMPLE_HTML, claude_bin=FAKE_CLAUDE, dsl=None):
+def make_config(repo_root, html=EXAMPLE_HTML, claude_bin=FAKE_CLAUDE, dsl=None,
+                allowed_models=("opus", "sonnet", "haiku"), default_model=None, default_effort=None):
     return bridge.BridgeConfig(
         repo_root=os.path.realpath(repo_root),
         html=html,
@@ -44,6 +45,9 @@ def make_config(repo_root, html=EXAMPLE_HTML, claude_bin=FAKE_CLAUDE, dsl=None):
         allowed_tools="Read,Glob,Grep",
         permission_mode="plan",
         timeout=30.0,
+        allowed_models=tuple(allowed_models),
+        default_model=default_model,
+        default_effort=default_effort,
     )
 
 
@@ -117,6 +121,25 @@ class ClaudeArgvTests(unittest.TestCase):
         argv = bridge.build_claude_argv("claude", "P", model="claude-haiku-4-5")
         self.assertEqual(argv[argv.index("--model") + 1], "claude-haiku-4-5")
 
+    def test_effort_added_when_given(self):
+        argv = bridge.build_claude_argv("claude", "P", effort="high")
+        self.assertEqual(argv[argv.index("--effort") + 1], "high")
+        # 末尾の allowedTools は維持（effort は prompt を飲まない）
+        self.assertEqual(argv[-2:], ["--allowedTools", "Read,Glob,Grep"])
+
+    def test_no_effort_by_default(self):
+        argv = bridge.build_claude_argv("claude", "P")
+        self.assertNotIn("--effort", argv)
+
+    def test_model_and_effort_order(self):
+        argv = bridge.build_claude_argv(
+            "claude", "P", model="opus", effort="high", session_id="U-1", resume=False
+        )
+        # --model < --effort < session フラグ < prompt の順
+        self.assertLess(argv.index("--model"), argv.index("--effort"))
+        self.assertLess(argv.index("--effort"), argv.index("--session-id"))
+        self.assertLess(argv.index("--effort"), argv.index("P"))
+
     def test_no_session_flags_by_default(self):
         argv = bridge.build_claude_argv("claude", "PROMPT")
         self.assertNotIn("--session-id", argv)
@@ -180,6 +203,50 @@ class PathJailTests(unittest.TestCase):
         self.assertEqual(cleaned["question"], "q")
 
 
+class ModelEffortValidateTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_accepts_allowed_model_and_effort(self):
+        cfg = make_config(self.tmp, allowed_models=("opus", "sonnet", "haiku"))
+        cleaned, err = bridge.validate_ask_payload(
+            {"question": "q", "model": "opus", "effort": "high"}, cfg
+        )
+        self.assertIsNone(err)
+        self.assertEqual(cleaned["model"], "opus")
+        self.assertEqual(cleaned["effort"], "high")
+
+    def test_rejects_model_outside_allowlist(self):
+        cfg = make_config(self.tmp, allowed_models=("opus", "sonnet"))
+        _, err = bridge.validate_ask_payload({"question": "q", "model": "evil-model"}, cfg)
+        self.assertIsNotNone(err)
+
+    def test_rejects_unknown_effort(self):
+        cfg = make_config(self.tmp)
+        _, err = bridge.validate_ask_payload({"question": "q", "effort": "ultra"}, cfg)
+        self.assertIsNotNone(err)
+
+    def test_omitted_become_none(self):
+        cfg = make_config(self.tmp)
+        cleaned, err = bridge.validate_ask_payload({"question": "q"}, cfg)
+        self.assertIsNone(err)
+        self.assertIsNone(cleaned["model"])
+        self.assertIsNone(cleaned["effort"])
+
+    def test_empty_string_coerced_to_none(self):
+        # 「(default)」セレクトは value="" を送り得る → フラグ省略（許可リスト照合に掛けない）
+        cfg = make_config(self.tmp)
+        cleaned, err = bridge.validate_ask_payload(
+            {"question": "q", "model": "", "effort": "  "}, cfg
+        )
+        self.assertIsNone(err)
+        self.assertIsNone(cleaned["model"])
+        self.assertIsNone(cleaned["effort"])
+
+
 class ClaudeNotFoundTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -222,6 +289,11 @@ class ServerTests(unittest.TestCase):
         # セッション欄: 既定で継続 ON、まだ会話を始めていないので id は null
         self.assertTrue(data["sessionContinuity"])
         self.assertIsNone(data["sessionId"])
+        # model/effort 公開: 許可リストと固定 effort 列挙、初期選択（make_config 既定では None）
+        self.assertEqual(data["availableModels"], ["opus", "sonnet", "haiku"])
+        self.assertEqual(data["availableEfforts"], ["low", "medium", "high", "xhigh", "max"])
+        self.assertIsNone(data["defaultModel"])
+        self.assertIsNone(data["defaultEffort"])
 
     def test_smoke_serves_html(self):
         status, body = request(self.port, "GET", "/repo-map.html")
@@ -285,8 +357,8 @@ class _Recorder:
         self.calls = []
         self.ok = ok
 
-    def __call__(self, prompt, config, *, session_id=None, resume=False):
-        self.calls.append({"session_id": session_id, "resume": resume})
+    def __call__(self, prompt, config, *, model=None, effort=None, session_id=None, resume=False):
+        self.calls.append({"session_id": session_id, "resume": resume, "model": model, "effort": effort})
         if self.ok:
             return {"ok": True, "answer": "A", "raw": None}
         return {"ok": False, "error": "boom", "detail": "x"}
@@ -358,12 +430,22 @@ class SessionChainingTests(_LiveServerCase):
         self.assertFalse(self.rec.calls[0]["resume"])
         self.assertIsNone(self.server.session_id)
 
+    def test_model_and_effort_forwarded_to_run_claude(self):
+        # 許可リスト内の model/effort が run_claude まで素通しされる（resume ターンでも維持）
+        request(self.port, "POST", "/api/ask", {"question": "q1", "model": "opus", "effort": "high"})
+        request(self.port, "POST", "/api/ask", {"question": "q2", "model": "sonnet", "effort": "low"})
+        self.assertEqual(self.rec.calls[0]["model"], "opus")
+        self.assertEqual(self.rec.calls[0]["effort"], "high")
+        self.assertTrue(self.rec.calls[1]["resume"])  # 2 ターン目は継続
+        self.assertEqual(self.rec.calls[1]["model"], "sonnet")
+        self.assertEqual(self.rec.calls[1]["effort"], "low")
+
 
 class ResumeFallbackTests(_LiveServerCase):
     def setUp(self):
         self.calls = []
 
-        def fake(prompt, config, *, session_id=None, resume=False):
+        def fake(prompt, config, *, model=None, effort=None, session_id=None, resume=False):
             self.calls.append({"session_id": session_id, "resume": resume})
             if resume:
                 return {"ok": False, "error": "session not found", "detail": "gone"}
@@ -410,7 +492,7 @@ class ResetConcurrencyTests(_LiveServerCase):
         self.entered = threading.Event()
         self.release = threading.Event()
 
-        def blocking(prompt, config, *, session_id=None, resume=False):
+        def blocking(prompt, config, *, model=None, effort=None, session_id=None, resume=False):
             self.entered.set()
             self.release.wait(timeout=5)
             return {"ok": True, "answer": "A", "raw": None}
@@ -467,6 +549,9 @@ class InjectionTests(_LiveServerCase):
         self.assertIsNone(err)
         self.assertNotIn("sessionId", cleaned)
         self.assertNotIn("session_id", cleaned)
+        # model/effort は既知キー化されたが、未指定なら None（フラグ省略）
+        self.assertIsNone(cleaned["model"])
+        self.assertIsNone(cleaned["effort"])
 
 
 if __name__ == "__main__":

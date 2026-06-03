@@ -49,8 +49,36 @@
   button:disabled { opacity: .5; cursor: not-allowed; }
   .status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
   .session { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
-  pre.answer { font-family: var(--font); font-size: 13px; white-space: pre-wrap; word-break: break-word;
-    background: #F9FAFB; border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-top: 8px; }
+  /* 回答（Markdown 描画） */
+  .answer { font-family: var(--font); font-size: 13px; background: #F9FAFB; border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px; margin-top: 8px; overflow-wrap: anywhere; }
+  .answer > *:first-child { margin-top: 0; }
+  .answer h1, .answer h2, .answer h3, .answer h4 { margin: 8px 0 4px; font-size: 14px; line-height: 1.3; }
+  .answer p { margin: 6px 0; }
+  .answer ul, .answer ol { margin: 4px 0; padding-left: 20px; }
+  .answer li { margin: 2px 0; }
+  .answer code { font-family: var(--mono); font-size: 12px; background: #fff; border: 1px solid var(--border);
+    border-radius: 4px; padding: 0 3px; }
+  .answer pre { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 8px;
+    overflow: auto; margin: 6px 0; }
+  .answer pre code { border: 0; padding: 0; background: none; }
+  .answer table { border-collapse: collapse; font-size: 12px; margin: 6px 0; }
+  .answer th, .answer td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+  .answer th { background: #F3F4F6; }
+  .answer blockquote { border-left: 3px solid var(--border); margin: 6px 0; padding-left: 10px; color: var(--muted); }
+  .answer a { color: var(--accent); }
+  .answer hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
+  /* 送信中スピナー（純 CSS アニメーション・JS タイマー無し） */
+  .loading { display: none; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .loading.on { display: flex; }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* model / effort 選択（bridge モードのみ表示） */
+  .model-controls { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+  .mc-label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  .mc-label select { font-family: var(--font); font-size: 12px; padding: 4px 6px; border: 1px solid var(--border);
+    border-radius: 6px; background: #fff; }
   textarea#prompt-fallback { width: 100%; min-height: 140px; font-family: var(--mono); font-size: 12px; margin-top: 8px;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px; display: none; }
 </style>
@@ -152,9 +180,18 @@
         <button id="btn-reset" style="display:none">新しい会話</button>
         <button id="btn-copy">Copy prompt for Claude Code</button>
       </div>
+      <div class="model-controls" id="model-controls" style="display:none">
+        <label class="mc-label">model
+          <select id="sel-model"><option value="">(default)</option></select>
+        </label>
+        <label class="mc-label">effort
+          <select id="sel-effort"><option value="">(default)</option></select>
+        </label>
+      </div>
       <div class="session" id="session-line"></div>
       <div class="status" id="status"></div>
-      <pre class="answer" id="answer" style="display:none"></pre>
+      <div class="loading" id="loading"><span class="spinner"></span>Claude が考えています…</div>
+      <div class="answer" id="answer" style="display:none"></div>
       <textarea id="prompt-fallback" readonly></textarea>
     </div>
   </aside>
@@ -181,7 +218,10 @@
   // bridge モードのみ「新しい会話」を出し、現在の会話状態を /api/health から拾って表示する
   if (isBridge) {
     document.getElementById("btn-reset").style.display = "";
+    document.getElementById("model-controls").style.display = "flex";
     fetch("/api/health").then(function (r) { return r.json(); }).then(function (h) {
+      populateSelect("sel-model", (h && h.availableModels) || [], h && h.defaultModel);
+      populateSelect("sel-effort", (h && h.availableEfforts) || [], h && h.defaultEffort);
       if (h && h.sessionContinuity === false) {
         setSessionLine("会話: 継続オフ（質問ごとに独立。--no-session-continuity で起動中）");
         document.getElementById("btn-reset").style.display = "none";
@@ -191,6 +231,21 @@
         setSessionLine(MSG_NOT_STARTED);
       }
     }).catch(function () { setSessionLine(MSG_NOT_STARTED); });
+  }
+
+  // /api/health 由来の値で <select> を埋める（先頭の (default) オプションは残す）
+  function populateSelect(id, values, def) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    for (var i = 0; i < values.length; i++) {
+      var v = values[i];
+      if (typeof v !== "string" || !v) continue;
+      var opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = v;
+      if (def && v === def) opt.selected = true;
+      sel.appendChild(opt);
+    }
   }
 
   var selected = null; // 直近にクリックしたノードの dataset
@@ -230,6 +285,106 @@
       "- 最後に「次に読むとよいファイル」を挙げてください。\n" +
       "- 回答は日本語を基本にしてください。\n"
     );
+  }
+
+  // 自己完結 Markdown レンダラ（CDN/外部ライブラリ不使用・決定的・XSS 安全）。
+  // 方針: まず全体を HTML エスケープ → フェンス/インラインコードをプレースホルダ退避 →
+  // ブロック（見出し/hr/引用/リスト/表/段落）→ インライン（コード/リンク/強調）→ 復元。
+  function renderMarkdown(src) {
+    function esc(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+    var store = [];
+    function stash(html) { store.push(html); return "\u0000" + (store.length - 1) + "\u0000"; }
+    function isStash(s) { return /^\u0000\d+\u0000$/.test(s.trim()); }
+
+    var text = esc(src == null ? "" : String(src)).replace(/\r\n?/g, "\n");
+
+    // フェンスコードブロック（```lang … ``` / ~~~ … ~~~）を先に退避
+    text = text.replace(/(^|\n)(```|~~~)[^\n]*\n([\s\S]*?)\n\2(?=\n|$)/g, function (m, pre, fence, code) {
+      return pre + stash("<pre><code>" + code + "</code></pre>");
+    });
+
+    function inline(s) {
+      // インラインコード `…`（中身を他規則から保護）
+      s = s.replace(/`([^`]+)`/g, function (m, c) { return stash("<code>" + c + "</code>"); });
+      // リンク [text](url)（安全スキームのみ。危険スキームはテキストだけ残す）
+      s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (m, t, url) {
+        if (/^(https?:|mailto:|#|\/)/i.test(url)) {
+          return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + t + "</a>";
+        }
+        return t;
+      });
+      // 太字 → 斜体 の順（** を先に食わせる）
+      s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/__([^_]+)__/g, "<strong>$1</strong>");
+      s = s.replace(/\*([^*\n]+)\*/g, "<em>$1</em>").replace(/(^|[^\w])_([^_\n]+)_(?=$|[^\w])/g, "$1<em>$2</em>");
+      return s;
+    }
+
+    function splitRow(row) {
+      return row.replace(/^\s*\|?/, "").replace(/\|?\s*$/, "").split("|").map(function (c) { return c.trim(); });
+    }
+
+    var lines = text.split("\n");
+    var out = [];
+    var i = 0;
+    function blank(s) { return /^\s*$/.test(s); }
+
+    while (i < lines.length) {
+      var ln = lines[i];
+      if (blank(ln)) { i++; continue; }
+      if (isStash(ln)) { out.push(ln.trim()); i++; continue; }       // 退避済みフェンス
+
+      var h = /^(#{1,6})\s+(.*)$/.exec(ln);
+      if (h) { var lv = h[1].length; out.push("<h" + lv + ">" + inline(h[2].trim()) + "</h" + lv + ">"); i++; continue; }
+
+      if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(ln)) { out.push("<hr>"); i++; continue; }
+
+      // パイプ表（ヘッダ行＋区切り行）
+      if (ln.indexOf("|") !== -1 && i + 1 < lines.length &&
+          /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)+\|?\s*$/.test(lines[i + 1])) {
+        var header = splitRow(ln);
+        i += 2;
+        var rows = [];
+        while (i < lines.length && lines[i].indexOf("|") !== -1 && !blank(lines[i])) { rows.push(splitRow(lines[i])); i++; }
+        var thead = "<thead><tr>" + header.map(function (c) { return "<th>" + inline(c) + "</th>"; }).join("") + "</tr></thead>";
+        var tbody = "<tbody>" + rows.map(function (r) {
+          return "<tr>" + r.map(function (c) { return "<td>" + inline(c) + "</td>"; }).join("") + "</tr>";
+        }).join("") + "</tbody>";
+        out.push("<table>" + thead + tbody + "</table>");
+        continue;
+      }
+
+      if (/^\s*&gt;\s?/.test(ln)) {                                  // 引用（> はエスケープ済みで &gt;）
+        var q = [];
+        while (i < lines.length && /^\s*&gt;\s?/.test(lines[i])) { q.push(lines[i].replace(/^\s*&gt;\s?/, "")); i++; }
+        out.push("<blockquote>" + inline(q.join(" ")) + "</blockquote>");
+        continue;
+      }
+
+      if (/^\s*[-*+]\s+/.test(ln) || /^\s*\d+\.\s+/.test(ln)) {      // リスト
+        var ordered = /^\s*\d+\.\s+/.test(ln);
+        var re = ordered ? /^\s*\d+\.\s+(.*)$/ : /^\s*[-*+]\s+(.*)$/;
+        var items = [];
+        while (i < lines.length && re.test(lines[i])) { items.push(re.exec(lines[i])[1]); i++; }
+        var tag = ordered ? "ol" : "ul";
+        out.push("<" + tag + ">" + items.map(function (it) { return "<li>" + inline(it) + "</li>"; }).join("") + "</" + tag + ">");
+        continue;
+      }
+
+      // 段落（空行/他ブロック開始まで）
+      var para = [];
+      while (i < lines.length && !blank(lines[i]) && !isStash(lines[i]) &&
+             !/^(#{1,6})\s+/.test(lines[i]) && !/^(-{3,}|\*{3,}|_{3,})\s*$/.test(lines[i]) &&
+             !/^\s*&gt;\s?/.test(lines[i]) && !/^\s*[-*+]\s+/.test(lines[i]) && !/^\s*\d+\.\s+/.test(lines[i])) {
+        para.push(lines[i]); i++;
+      }
+      if (para.length) out.push("<p>" + inline(para.join(" ")) + "</p>");
+    }
+
+    var html = out.join("\n");
+    return html.replace(/\u0000(\d+)\u0000/g, function (m, n) { return store[+n]; });  // コード復元
   }
 
   function selectNode(g) {
@@ -283,6 +438,10 @@
     document.getElementById("btn-ask").disabled = busy;
     var br = document.getElementById("btn-reset");
     if (br) br.disabled = busy;
+    var sm = document.getElementById("sel-model"); if (sm) sm.disabled = busy;
+    var se = document.getElementById("sel-effort"); if (se) se.disabled = busy;
+    // 送信中だけスピナーを表示（CSS アニメーション。本物のストリーミングはしない）
+    document.getElementById("loading").classList.toggle("on", busy);
   }
 
   function doReset() {
@@ -320,6 +479,12 @@
     }
 
     var body = Object.assign({ question: question }, p);
+    // model / effort は非空のときだけ送る（「(default)」はフラグ省略）
+    var selModel = document.getElementById("sel-model");
+    var selEffort = document.getElementById("sel-effort");
+    if (selModel && selModel.value) body.model = selModel.value;
+    if (selEffort && selEffort.value) body.effort = selEffort.value;
+    document.getElementById("answer").style.display = "none";
     document.getElementById("status").textContent = "ローカル Claude Code に問い合わせ中…（数十秒かかることがあります）";
     setBusy(true);
 
@@ -332,7 +497,8 @@
         setBusy(false);
         var ans = document.getElementById("answer");
         if (res.json && res.json.ok) {
-          ans.textContent = res.json.answer || "(空の回答)";
+          // 回答は Markdown。自己完結レンダラで HTML 描画（エラーは下で textContent のまま）
+          ans.innerHTML = renderMarkdown(res.json.answer || "(空の回答)");
           ans.style.display = "block";
           document.getElementById("status").textContent = "回答が返りました。";
           setSessionLine(MSG_CONTINUING);

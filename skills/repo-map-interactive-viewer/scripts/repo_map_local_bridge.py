@@ -44,6 +44,11 @@ DEFAULT_PORT = 17333
 DEFAULT_ALLOWED_TOOLS = "Read,Glob,Grep"
 DEFAULT_PERMISSION_MODE = "plan"
 DEFAULT_CLAUDE_TIMEOUT = 180.0  # 秒
+DEFAULT_MODELS = "opus,sonnet,haiku"  # UI のモデル選択肢（カンマ区切り許可リスト）
+DEFAULT_MODEL = "sonnet"              # UI 初期選択モデル（応答速度優先の既定）
+DEFAULT_EFFORT = "medium"             # UI 初期選択 effort
+# claude CLI 固定の effort 列挙（v2.1.161 で確認）。デプロイ設定ではないのでモジュール定数。
+ALLOWED_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 
 MAX_BODY_BYTES = 256 * 1024
 MAX_QUESTION = 8_000
@@ -64,6 +69,9 @@ class BridgeConfig:
     permission_mode: str
     timeout: float
     session_continuity: bool = True
+    allowed_models: tuple[str, ...] = ()       # UI セレクトの許可リスト（--models 由来）
+    default_model: str | None = None           # UI 初期選択モデル（allowed_models のいずれか）
+    default_effort: str | None = None          # UI 初期選択 effort（ALLOWED_EFFORTS のいずれか）
 
 
 # --- パス・ジェイル ----------------------------------------------------------
@@ -129,6 +137,7 @@ def build_claude_argv(
     permission_mode: str = DEFAULT_PERMISSION_MODE,
     allowed_tools: str = DEFAULT_ALLOWED_TOOLS,
     model: str | None = None,
+    effort: str | None = None,
     session_id: str | None = None,
     resume: bool = False,
 ) -> list[str]:
@@ -136,6 +145,8 @@ def build_claude_argv(
 
     --allowedTools は可変長オプションなので、prompt 位置引数を飲み込まないよう
     カンマ形の単一値で最後に置く。--dangerously-skip-permissions は決して付けない。
+    model / effort が指定されれば --model / --effort を session フラグの前に付ける
+    （いずれも値必須の単一フラグ。許可リスト検証は API 層で済んでいる前提）。
 
     session_id を渡すと会話を継続する: 初回は --session-id（その UUID で新規会話）、
     以降は resume=True で --resume（既存会話を継続）。session_id が空のときは
@@ -149,6 +160,8 @@ def build_claude_argv(
     ]
     if model:
         argv += ["--model", model]
+    if effort:
+        argv += ["--effort", effort]
     if session_id:
         argv += (["--resume", session_id] if resume else ["--session-id", session_id])
     argv += [prompt, "--allowedTools", allowed_tools]
@@ -187,13 +200,16 @@ def run_claude(
     prompt: str,
     config: BridgeConfig,
     *,
+    model: str | None = None,
+    effort: str | None = None,
     session_id: str | None = None,
     resume: bool = False,
 ) -> dict:
     """claude を呼んで {ok, answer, raw} か {ok:false, error, detail} を返す。
 
-    session_id / resume は build_claude_argv へ素通し（会話継続用）。返り値の形は
-    継続有無に関わらず一定（セッション状態はサーバ側 BridgeServer が保持・管理する）。
+    model / effort / session_id / resume は build_claude_argv へ素通し。model 未指定なら
+    config.claude_model にフォールバック。effort はリクエスト指定のみ（既定の暗黙注入はしない）。
+    返り値の形は継続有無に関わらず一定（セッション状態はサーバ側 BridgeServer が保持・管理する）。
     """
     executable = resolve_claude(config.claude_bin)
     if not executable:
@@ -209,7 +225,8 @@ def run_claude(
         prompt,
         permission_mode=config.permission_mode,
         allowed_tools=config.allowed_tools,
-        model=config.claude_model,
+        model=model if model else config.claude_model,
+        effort=effort,
         session_id=session_id,
         resume=resume,
     )
@@ -274,6 +291,24 @@ def validate_ask_payload(payload, config: BridgeConfig):
     if path and not within_repo_root(path, config.repo_root):
         return None, "path がリポジトリルート外を指しています（拒否）。"
 
+    # model / effort は任意・許可リスト限定。空/空白は「(default)＝フラグ省略」として None 扱い。
+    # client が送るのは「値」であってフラグではない。サーバ許可リストと完全一致照合し、外れは拒否。
+    model = (payload.get("model") or "").strip() if isinstance(payload.get("model"), str) else ""
+    if model:
+        if model not in config.allowed_models:
+            return None, "model が許可リストにありません（拒否）。"
+        cleaned["model"] = model
+    else:
+        cleaned["model"] = None
+
+    effort = (payload.get("effort") or "").strip() if isinstance(payload.get("effort"), str) else ""
+    if effort:
+        if effort not in ALLOWED_EFFORTS:
+            return None, "effort が許可された値ではありません（low/medium/high/xhigh/max）。"
+        cleaned["effort"] = effort
+    else:
+        cleaned["effort"] = None
+
     return cleaned, None
 
 
@@ -337,6 +372,10 @@ class BridgeHandler(BaseHTTPRequestHandler):
             "allowedTools": self.config.allowed_tools,
             "sessionContinuity": getattr(self.server, "session_continuity", True),
             "sessionId": getattr(self.server, "session_id", None),
+            "availableModels": list(self.config.allowed_models),
+            "availableEfforts": list(ALLOWED_EFFORTS),
+            "defaultModel": self.config.default_model,
+            "defaultEffort": self.config.default_effort,
         })
 
     def _handle_ask(self):
@@ -362,11 +401,14 @@ class BridgeHandler(BaseHTTPRequestHandler):
             return
 
         prompt = build_prompt(cleaned)
-        result = self._run_claude_with_session(prompt)
+        result = self._run_claude_with_session(
+            prompt, model=cleaned.get("model"), effort=cleaned.get("effort")
+        )
         status = 200 if result.get("ok") else 502
         self._send_json(status, result)
 
-    def _run_claude_with_session(self, prompt: str) -> dict:
+    def _run_claude_with_session(self, prompt: str, *, model: str | None = None,
+                                 effort: str | None = None) -> dict:
         """セッション継続を管理しつつ claude を呼ぶ。
 
         - 継続 OFF: 毎回まっさらな claude（従来挙動）。
@@ -381,7 +423,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
         srv = self.server
         if not getattr(srv, "session_continuity", True):
             with srv.claude_lock:
-                return run_claude(prompt, self.config)
+                return run_claude(prompt, self.config, model=model, effort=effort)
 
         with srv.claude_lock:
             with srv.state_lock:
@@ -390,11 +432,13 @@ class BridgeHandler(BaseHTTPRequestHandler):
             is_new = sid is None
             if is_new:
                 sid = str(uuid.uuid4())
-            result = run_claude(prompt, self.config, session_id=sid, resume=not is_new)
+            result = run_claude(prompt, self.config, model=model, effort=effort,
+                                session_id=sid, resume=not is_new)
             if not result.get("ok") and not is_new:
                 # 既存会話の resume に失敗 → 新しい会話として 1 回だけやり直す
                 sid = str(uuid.uuid4())
-                result = run_claude(prompt, self.config, session_id=sid, resume=False)
+                result = run_claude(prompt, self.config, model=model, effort=effort,
+                                    session_id=sid, resume=False)
             with srv.state_lock:
                 if srv.session_epoch == start_epoch:  # 途中で reset されていなければ反映
                     srv.session_id = sid if result.get("ok") else None
@@ -479,6 +523,12 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"待受ポート（既定 {DEFAULT_PORT}）")
     parser.add_argument("--claude-bin", default="claude", help="claude 実行ファイル名/パス")
     parser.add_argument("--claude-model", default=None, help="（任意）claude --model に渡すモデル名（高速化用など）")
+    parser.add_argument("--models", default=DEFAULT_MODELS,
+                        help=f"UI のモデル選択肢（カンマ区切り許可リスト。既定 {DEFAULT_MODELS}）。空なら選択肢を出さない。")
+    parser.add_argument("--default-model", default=DEFAULT_MODEL,
+                        help=f"UI で初期選択するモデル（--models のいずれか。既定 {DEFAULT_MODEL}）。外れていれば (default) に戻す。")
+    parser.add_argument("--default-effort", default=DEFAULT_EFFORT, choices=list(ALLOWED_EFFORTS),
+                        help=f"UI で初期選択する reasoning effort（low/medium/high/xhigh/max。既定 {DEFAULT_EFFORT}）。")
     parser.add_argument("--allowed-tools", default=DEFAULT_ALLOWED_TOOLS,
                         help=f"claude --allowedTools の値（既定 {DEFAULT_ALLOWED_TOOLS}）")
     parser.add_argument("--permission-mode", default=DEFAULT_PERMISSION_MODE,
@@ -506,6 +556,13 @@ def build_config(args: argparse.Namespace) -> BridgeConfig:
         if not within_repo_root(dsl_path, repo_root):
             raise SystemExit("--dsl がリポジトリルート外を指しています（拒否）。")
 
+    allowed_models = tuple(m.strip() for m in (args.models or "").split(",") if m.strip())
+    default_model = args.default_model if args.default_model in allowed_models else None
+    if args.default_model and default_model is None:
+        sys.stderr.write(
+            f"[bridge] --default-model {args.default_model} は --models に無いので (default) に戻します\n"
+        )
+
     return BridgeConfig(
         repo_root=repo_root,
         html=html_path,
@@ -517,6 +574,9 @@ def build_config(args: argparse.Namespace) -> BridgeConfig:
         permission_mode=args.permission_mode,
         timeout=args.timeout,
         session_continuity=not args.no_session_continuity,
+        allowed_models=allowed_models,
+        default_model=default_model,
+        default_effort=args.default_effort,
     )
 
 
@@ -529,6 +589,11 @@ def serve(config: BridgeConfig):
     sys.stderr.write(f"[bridge] repo-root: {config.repo_root}\n")
     sys.stderr.write(f"[bridge] claude: {'found' if resolve_claude(config.claude_bin) else 'NOT FOUND'}\n")
     sys.stderr.write(f"[bridge] session continuity: {'on' if config.session_continuity else 'off'}\n")
+    models_label = ",".join(config.allowed_models) if config.allowed_models else "(none)"
+    sys.stderr.write(
+        f"[bridge] models: {models_label} "
+        f"(default={config.default_model or '(default)'}, effort={config.default_effort or '(default)'})\n"
+    )
     sys.stderr.write("[bridge] stop with Ctrl+C\n")
     try:
         server.serve_forever()

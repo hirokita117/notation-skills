@@ -15,7 +15,10 @@
 | `--dsl` | | なし | repo-map DSL 正本のパス（**repo-root 配下のみ**）。`/api/health` 表示などに使う。 |
 | `--port` | | `17333` | 待受ポート。 |
 | `--claude-bin` | | `claude` | `claude` 実行ファイル名/パス。 |
-| `--claude-model` | | なし | `claude --model` に渡すモデル名（高速モデル指定など）。未指定なら CLI 既定。 |
+| `--claude-model` | | なし | `claude --model` に渡すモデル名（プロセス全体の強制指定）。per-request の `model` が無いときのフォールバック。 |
+| `--models` | | `opus,sonnet,haiku` | UI のモデル選択肢（カンマ区切り許可リスト。`/api/health` で公開。空なら選択肢なし）。 |
+| `--default-model` | | `sonnet` | UI で初期選択するモデル（`--models` のいずれか。外れていれば `(default)` に戻す）。 |
+| `--default-effort` | | `medium` | UI で初期選択する reasoning effort（`low/medium/high/xhigh/max`）。 |
 | `--allowed-tools` | | `Read,Glob,Grep` | `claude --allowedTools` の値。 |
 | `--permission-mode` | | `plan` | `claude --permission-mode`。 |
 | `--timeout` | | `180` | `claude` 呼び出しのタイムアウト秒。 |
@@ -101,10 +104,16 @@ HTML 側 `buildPrompt`（copy 方式）も同じ体裁を作るので、どち�
 claude -p --output-format json --permission-mode plan --session-id <uuid> <prompt> --allowedTools Read,Glob,Grep
 # 2 回目以降（同じ会話を継続）
 claude -p --output-format json --permission-mode plan --resume <uuid> <prompt> --allowedTools Read,Glob,Grep
+# model / effort を選択した場合（--model の直後に追加）
+claude -p --output-format json --permission-mode plan --model opus --effort high --session-id <uuid> <prompt> --allowedTools Read,Glob,Grep
 ```
 
-`--claude-model` 指定時は `--model <model>` を追加。`--allowedTools` は可変長オプションなので、
-prompt 位置引数を飲み込まないよう **カンマ形の単一値で最後**に置く。session フラグは prompt より前に置く。
+`--claude-model`（起動時）または `/api/ask` の per-request `model` 指定時は `--model <model>` を、
+per-request `effort` 指定時は `--effort <level>` を **`--model` の直後**（prompt 位置引数より前・session フラグの前）に追加する。
+`--effort` の許可値は **`low/medium/high/xhigh/max`**（CLI v2.1.161 で確認。`--print`=`-p` 併用が前提）。許可外の
+`model`/`effort` は API 層（`validate_ask_payload`）が許可リストで `400` 拒否するため、不正値は subprocess に到達しない。
+`--allowedTools` は可変長オプションなので、prompt 位置引数を飲み込まないよう **カンマ形の単一値で最後**に置く。
+session フラグは prompt より前に置く。
 
 - `claude` が見つからない → `{ok:false, error:"claude コマンドが見つかりません…"}`。
 - 非ゼロ終了 / 未対応フラグ stderr / タイムアウト → `{ok:false, error, detail}` を HTML に返す。
