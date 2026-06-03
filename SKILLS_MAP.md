@@ -1,6 +1,6 @@
-# SKILLS_MAP — 3 Skill の連携
+# SKILLS_MAP — Skill の連携
 
-このリポジトリの 3 つの Skill は、**「思想 → 生成 → 描画」**の一方向パイプラインとして連携します。各 Skill の責務と、**どの事実をどこが正本として持つか**をここで一覧します。
+このリポジトリの中核 3 Skill は、**「思想 → 生成 → 描画」**の一方向パイプラインとして連携します。さらに、生成済み HTML をローカル Claude Code とつなぐ**アドオン**（`repo-map-interactive-viewer`）がパイプラインの外側に乗ります。各 Skill の責務と、**どの事実をどこが正本として持つか**をここで一覧します。
 
 ---
 
@@ -11,6 +11,7 @@
 | 0 | `notation-core` | 共通土台（記法中心設計の思想・用語・原則・検証観） | 原則 | 初回・設計判断に迷ったとき（毎回は不要） |
 | 1 | `repo-map-notation` | リポジトリ構造を `repo-map v1` DSL に落とす | `repo-map v1` テキスト | 「図解して」「アーキテクチャ地図」 |
 | 2 | `notation-render` | DSL **だけ**を読んで図にする（決定的） | SVG / HTML（任意で Mermaid） | 「この DSL を SVG に」 |
+| ＋ | `repo-map-interactive-viewer` | 生成済みインタラクティブ HTML をローカル Claude Code とつなぐ対話ビューア（**描画はしない**・DSL 正本も変えない） | ブリッジ起動手順・質問→回答 | 「HTML をクリックして Claude に質問したい」 |
 
 ---
 
@@ -32,12 +33,13 @@
 
 - `notation-core` はこのパイプラインの**外側にある土台**です。原則に立ち返りたいとき、新しい記法を設計したいときに読みます。
 - パイプラインは**一方向**です。`notation-render` が DSL の不足や矛盾に気づいたら、**自分で補完せず** `repo-map-notation` に差し戻します（リポジトリの再走査はしません）。
+- `repo-map-interactive-viewer` はパイプラインの**外側のアドオン**です。`notation-render` が出した**インタラクティブ HTML を入力**に、ローカル Claude Code とつないで理解を補助します。ここでの対話は読み取り専用で、**DSL 正本を変えません**。「もっと深く」は Viewer で描き足すのではなく `repo-map-notation` に戻り、スコープを絞った新 DSL を作って描き直します。
 
 ---
 
 ## 「正本」の所在（ドリフト防止）
 
-3 Skill が同じ事実を別々に書くと、生成された DSL が描画できなくなります。そこで**共有事実は 1 箇所だけが正本を持ち、他はそこを参照**します。
+各 Skill が同じ事実を別々に書くと、生成された DSL が描画できなくなります。そこで**共有事実は 1 箇所だけが正本を持ち、他はそこを参照**します。
 
 | 共有事実 | 正本（ここを編集する） | 参照する側 |
 |----------|------------------------|-----------|
@@ -50,6 +52,7 @@
 | 内部モデル `RepoMap` の形 | `repo-map-notation/references/grammar.md` | `notation-render/references/render-contract.md` |
 | 描画パイプライン名 `parse → validate → layout → emit` | `notation-render/references/render-contract.md` | `notation-render`（parse/validate の語彙は `notation-core` の同期ループに由来） |
 | 決定的レイアウトとテーマ定数（固定 hex） | `notation-render/references/layout-algorithm.md` | `repo-map-notation`（サンプル描画の見た目を語るとき） |
+| インタラクティブ HTML 契約（`data-*` スキーマ／`/api/ask` JSON 形／フォールバック） | `repo-map-interactive-viewer/references/html-viewer-contract.md` | `notation-render`（インタラクティブ HTML を出すとき） |
 
 ルール: **`repo-map v1` の文法・列挙・検証は `repo-map-notation/references/grammar.md` が唯一の正本**。`notation-render` は「文法・列挙・検証コードは grammar.md v1 を normative とする」と宣言し、再定義しない。`notation-core` は思想・用語・一般原則だけを持ち、具体値は持たない。
 

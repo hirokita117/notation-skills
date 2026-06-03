@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>repo-map v1 — interactive viewer (example)</title>
+<!--
+  repo-map インタラクティブ Viewer の最小例。
+  これは notation-render が出す HTML 契約のリファレンス実装であり、
+  repo-map-interactive-viewer/references/html-viewer-contract.md に対応する。
+
+  正本は repo-map v1 DSL（examples/repo-map.dsl）。この HTML は派生物・理解補助 UI。
+  data-* の値はすべて DSL から決定的に導出される（固定テンプレート＋固定スクリプト）。
+-->
+<style>
+  :root {
+    --fg: #111827; --muted: #6B7280; --border: #E5E7EB; --bg: #FFFFFF;
+    --accent: #2563EB; --focus: #F59E0B;
+    --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); color: var(--fg); background: var(--bg); }
+  header { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 15px; margin: 0; }
+  header .mode { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .layout { display: flex; align-items: flex-start; gap: 16px; padding: 16px; flex-wrap: wrap; }
+  .diagram { border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+  .node { cursor: pointer; }
+  .node:hover rect { stroke: var(--focus); stroke-width: 3; }
+  .node.selected rect { stroke: var(--focus); stroke-width: 3; }
+  .legend { font-size: 12px; color: var(--muted); padding: 8px 4px; }
+  .legend span.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin: 0 4px 0 10px; }
+  /* panel */
+  .panel { width: 380px; min-width: 300px; flex: 1 1 320px; border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .panel h2 { font-size: 13px; margin: 0 0 8px; }
+  .panel .empty { color: var(--muted); font-size: 13px; }
+  .field { margin: 6px 0; font-size: 13px; }
+  .field .k { color: var(--muted); display: inline-block; min-width: 90px; }
+  .field .v { font-family: var(--mono); }
+  pre.excerpt, pre.edges { font-family: var(--mono); font-size: 12px; background: #F9FAFB; border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px; white-space: pre-wrap; word-break: break-word; max-height: 160px; overflow: auto; }
+  textarea#question { width: 100%; min-height: 64px; font-family: var(--font); font-size: 13px; padding: 8px;
+    border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
+  .actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  button { font-family: var(--font); font-size: 13px; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border);
+    background: #fff; cursor: pointer; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
+  pre.answer { font-family: var(--font); font-size: 13px; white-space: pre-wrap; word-break: break-word;
+    background: #F9FAFB; border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-top: 8px; }
+  textarea#prompt-fallback { width: 100%; min-height: 140px; font-family: var(--mono); font-size: 12px; margin-top: 8px;
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px; display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>repo-map v1 — interactive viewer (example)</h1>
+  <div class="mode" id="mode-line">mode: 判定中…</div>
+</header>
+
+<div class="layout">
+  <!-- ===== 図（SVG）: data-* はすべて DSL から決定的に導出 ===== -->
+  <div>
+    <svg class="diagram" width="620" height="360" viewBox="0 0 620 360" xmlns="http://www.w3.org/2000/svg" font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 z" fill="#4B5563"></path>
+        </marker>
+      </defs>
+
+      <!-- edges（先に描いてノードで上書き） -->
+      <line x1="280" y1="54" x2="120" y2="174" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+      <line x1="280" y1="54" x2="440" y2="174" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+      <line x1="120" y1="174" x2="440" y2="174" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+      <line x1="440" y1="174" x2="440" y2="270" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+
+      <!-- node: monorepo (system) -->
+      <g class="node"
+         data-node-id="monorepo" data-label="Acme Platform" data-kind="system" data-path=""
+         data-related-edges="monorepo web contains&#10;monorepo core contains"
+         data-dsl-excerpt="monorepo system &quot;Acme Platform&quot;&#10;monorepo web contains&#10;monorepo core contains">
+        <rect x="200" y="30" width="160" height="48" rx="8" fill="#1F2937" stroke="#111827"></rect>
+        <text x="280" y="52" text-anchor="middle" fill="#FFFFFF" font-size="13">Acme Platform</text>
+        <text x="280" y="68" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">monorepo</text>
+      </g>
+
+      <!-- node: web (package) -->
+      <g class="node"
+         data-node-id="web" data-label="Web App" data-kind="package" data-path="apps/web"
+         data-related-edges="monorepo web contains&#10;web core imports"
+         data-dsl-excerpt="web package &quot;Web App&quot; apps/web&#10;monorepo web contains&#10;web core imports">
+        <rect x="40" y="150" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827"></rect>
+        <text x="120" y="172" text-anchor="middle" fill="#FFFFFF" font-size="13">Web App</text>
+        <text x="120" y="188" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">web</text>
+      </g>
+
+      <!-- node: core (package) -->
+      <g class="node"
+         data-node-id="core" data-label="Shared Core" data-kind="package" data-path="packages/core"
+         data-related-edges="monorepo core contains&#10;web core imports&#10;core db reads"
+         data-dsl-excerpt="core package &quot;Shared Core&quot; packages/core&#10;monorepo core contains&#10;web core imports&#10;core db reads">
+        <rect x="360" y="150" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827"></rect>
+        <text x="440" y="172" text-anchor="middle" fill="#FFFFFF" font-size="13">Shared Core</text>
+        <text x="440" y="188" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">core</text>
+      </g>
+
+      <!-- node: db (datastore) -->
+      <g class="node"
+         data-node-id="db" data-label="Postgres" data-kind="datastore" data-path=""
+         data-related-edges="core db reads"
+         data-dsl-excerpt="db datastore Postgres&#10;core db reads">
+        <rect x="360" y="270" width="160" height="48" rx="8" fill="#7C3AED" stroke="#111827"></rect>
+        <text x="440" y="292" text-anchor="middle" fill="#FFFFFF" font-size="13">Postgres</text>
+        <text x="440" y="308" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">db</text>
+      </g>
+    </svg>
+
+    <!-- 凡例（DSL 非依存の固定マークアップ） -->
+    <div class="legend">
+      kind:
+      <span class="sw" style="background:#1F2937"></span>system
+      <span class="sw" style="background:#2563EB"></span>package
+      <span class="sw" style="background:#0EA5E9"></span>module
+      <span class="sw" style="background:#14B8A6"></span>file-group
+      <span class="sw" style="background:#9CA3AF"></span>external
+      <span class="sw" style="background:#7C3AED"></span>datastore
+      ／ 実線=構造（contains/deploys/owns）, 破線=依存（imports/calls/reads）
+    </div>
+  </div>
+
+  <!-- ===== 質問サイドパネル ===== -->
+  <aside class="panel" id="panel">
+    <h2>選択中のノード</h2>
+    <div id="node-empty" class="empty">図のノードをクリックすると、ここに詳細が表示されます。</div>
+    <div id="node-detail" style="display:none">
+      <div class="field"><span class="k">node id</span><span class="v" id="f-id"></span></div>
+      <div class="field"><span class="k">label</span><span class="v" id="f-label"></span></div>
+      <div class="field"><span class="k">kind</span><span class="v" id="f-kind"></span></div>
+      <div class="field"><span class="k">path</span><span class="v" id="f-path"></span></div>
+      <div class="field"><span class="k">related edges</span></div>
+      <pre class="edges" id="f-edges"></pre>
+      <div class="field"><span class="k">DSL excerpt</span></div>
+      <pre class="excerpt" id="f-excerpt"></pre>
+
+      <div class="field"><span class="k">質問</span></div>
+      <textarea id="question" placeholder="このノードについて聞きたいことを入力…"></textarea>
+      <div class="actions">
+        <button class="primary" id="btn-ask">Ask Claude Code</button>
+        <button id="btn-copy">Copy prompt for Claude Code</button>
+      </div>
+      <div class="status" id="status"></div>
+      <pre class="answer" id="answer" style="display:none"></pre>
+      <textarea id="prompt-fallback" readonly></textarea>
+    </div>
+  </aside>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // --- モード判定: 127.0.0.1 配信なら bridge、それ以外（file:// 等）は copy フォールバック ---
+  var isBridge = (location.protocol === "http:" || location.protocol === "https:") &&
+                 (location.hostname === "127.0.0.1" || location.hostname === "localhost");
+  document.getElementById("mode-line").textContent =
+    isBridge ? "mode: localhost bridge（Ask でローカル Claude Code に質問できます）"
+             : "mode: copy フォールバック（ブリッジ未起動／file://。プロンプトをコピーして Claude Code に貼ってください）";
+
+  var selected = null; // 直近にクリックしたノードの dataset
+
+  function nodePayload() {
+    if (!selected) return null;
+    return {
+      nodeId: selected.nodeId || "",
+      label: selected.label || "",
+      kind: selected.kind || "",
+      path: selected.path || "",
+      relatedEdges: selected.relatedEdges || "",
+      dslExcerpt: selected.dslExcerpt || ""
+    };
+  }
+
+  // サーバ側 build_prompt と同じ体裁（コピー方式でも同じプロンプトが得られる）
+  function buildPrompt(p, question) {
+    function line(v) { v = (v || "").trim(); return v ? v : "(未指定)"; }
+    function block(v) { v = (v || "").trim(); return v ? v : "(なし)"; }
+    return (
+      "あなたはローカルリポジトリ理解を支援するアシスタントです。\n" +
+      "対象リポジトリは現在のworking directoryです。\n\n" +
+      "ユーザーは repo-map HTML Viewer 上で次のノードを見ています。\n\n" +
+      "node id: " + line(p.nodeId) + "\n" +
+      "label: " + line(p.label) + "\n" +
+      "kind: " + line(p.kind) + "\n" +
+      "path: " + line(p.path) + "\n" +
+      "related edges:\n" + block(p.relatedEdges) + "\n\n" +
+      "DSL excerpt:\n" + block(p.dslExcerpt) + "\n\n" +
+      "ユーザーの質問:\n" + (question || "").trim() + "\n\n" +
+      "回答方針:\n" +
+      "- まず repo-map DSL 上の意味を説明してください。\n" +
+      "- 必要なら Read / Glob / Grep で実ファイルを確認してください。\n" +
+      "- 推測と確認済み事実を分けてください。\n" +
+      "- ファイル編集、生成、削除はしないでください。\n" +
+      "- 最後に「次に読むとよいファイル」を挙げてください。\n" +
+      "- 回答は日本語を基本にしてください。\n"
+    );
+  }
+
+  function selectNode(g) {
+    var nodes = document.querySelectorAll(".node");
+    for (var i = 0; i < nodes.length; i++) nodes[i].classList.remove("selected");
+    g.classList.add("selected");
+    selected = g.dataset;
+
+    document.getElementById("node-empty").style.display = "none";
+    document.getElementById("node-detail").style.display = "block";
+    document.getElementById("f-id").textContent = selected.nodeId || "";
+    document.getElementById("f-label").textContent = selected.label || "";
+    document.getElementById("f-kind").textContent = selected.kind || "";
+    document.getElementById("f-path").textContent = selected.path || "(なし)";
+    document.getElementById("f-edges").textContent = selected.relatedEdges || "(なし)";
+    document.getElementById("f-excerpt").textContent = selected.dslExcerpt || "(なし)";
+    // 回答表示はリセット
+    document.getElementById("answer").style.display = "none";
+    document.getElementById("prompt-fallback").style.display = "none";
+    document.getElementById("status").textContent = "";
+  }
+
+  function showFallbackPrompt(prompt, note) {
+    var ta = document.getElementById("prompt-fallback");
+    ta.value = prompt;
+    ta.style.display = "block";
+    ta.focus();
+    ta.select();
+    document.getElementById("status").textContent =
+      note || "クリップボードが使えないため、下のテキストを手動でコピーしてください。";
+  }
+
+  function doCopy() {
+    var p = nodePayload();
+    if (!p) return;
+    var prompt = buildPrompt(p, document.getElementById("question").value);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(prompt).then(function () {
+        document.getElementById("status").textContent = "プロンプトをコピーしました。Claude Code に貼り付けてください。";
+        document.getElementById("prompt-fallback").style.display = "none";
+      }).catch(function () {
+        showFallbackPrompt(prompt);
+      });
+    } else {
+      showFallbackPrompt(prompt);
+    }
+  }
+
+  function doAsk() {
+    var p = nodePayload();
+    if (!p) return;
+    var question = document.getElementById("question").value.trim();
+    if (!question) { document.getElementById("status").textContent = "質問を入力してください。"; return; }
+
+    if (!isBridge) {
+      // ブリッジ無し → コピー方式に誘導
+      var prompt = buildPrompt(p, question);
+      showFallbackPrompt(prompt, "ブリッジが未起動です。下のプロンプトをコピーして Claude Code に貼ってください。");
+      return;
+    }
+
+    var body = Object.assign({ question: question }, p);
+    document.getElementById("status").textContent = "ローカル Claude Code に問い合わせ中…（数十秒かかることがあります）";
+    document.getElementById("btn-ask").disabled = true;
+
+    fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (j) { return { status: r.status, json: j }; }); })
+      .then(function (res) {
+        document.getElementById("btn-ask").disabled = false;
+        var ans = document.getElementById("answer");
+        if (res.json && res.json.ok) {
+          ans.textContent = res.json.answer || "(空の回答)";
+          ans.style.display = "block";
+          document.getElementById("status").textContent = "回答が返りました。";
+        } else {
+          var msg = (res.json && res.json.error) ? res.json.error : ("HTTP " + res.status);
+          var detail = (res.json && res.json.detail) ? ("\n\n" + res.json.detail) : "";
+          ans.textContent = "エラー: " + msg + detail;
+          ans.style.display = "block";
+          document.getElementById("status").textContent = "失敗しました。Copy prompt 方式も使えます。";
+        }
+      }).catch(function (err) {
+        document.getElementById("btn-ask").disabled = false;
+        var prompt = buildPrompt(p, question);
+        showFallbackPrompt(prompt, "ブリッジに接続できませんでした（" + err + "）。下のプロンプトをコピーしてください。");
+      });
+  }
+
+  // 配線
+  var nodes = document.querySelectorAll(".node");
+  for (var i = 0; i < nodes.length; i++) {
+    (function (g) { g.addEventListener("click", function () { selectNode(g); }); })(nodes[i]);
+  }
+  document.getElementById("btn-ask").addEventListener("click", doAsk);
+  document.getElementById("btn-copy").addEventListener("click", doCopy);
+})();
+</script>
+</body>
+</html>
