@@ -301,6 +301,8 @@ class ServerTests(unittest.TestCase):
         # セッション欄: 既定で継続 ON、まだ会話を始めていないので id は null
         self.assertTrue(data["sessionContinuity"])
         self.assertIsNone(data["sessionId"])
+        # リモート停止は既定で有効（HTML が停止ボタン表示を判断するのに使う）
+        self.assertTrue(data["remoteShutdown"])
         # model/effort 公開: 許可リストと固定 effort 列挙、初期選択（make_config 既定では None）
         self.assertEqual(data["availableModels"], ["opus", "sonnet", "haiku"])
         self.assertEqual(data["availableEfforts"], ["low", "medium", "high", "xhigh", "max"])
@@ -364,6 +366,64 @@ class ServerTests(unittest.TestCase):
         big = {"question": "q", "dslExcerpt": "x" * (300 * 1024)}
         status, _ = request(self.port, "POST", "/api/ask", big)
         self.assertEqual(status, 413)
+
+
+class ShutdownEndpointTests(unittest.TestCase):
+    """POST /api/shutdown でブリッジが通常停止経路で止まることを検証する。
+
+    停止テストは自前でサーバを起動・停止して完結させる（共有サーバを巻き込まない）。
+    serve_forever スレッドが join できることを「停止した」証拠として使う。
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.config = make_config(self.tmp, html=EXAMPLE_HTML)
+        self.server = bridge.BridgeServer(("127.0.0.1", 0), bridge.BridgeHandler)
+        self.server.bridge_config = self.config
+        self.port = self.server.server_address[1]
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self):
+        # 既に停止済みでも二重停止に耐えるよう握りつぶす
+        try:
+            self.server.shutdown()
+        except Exception:
+            pass
+        try:
+            self.server.server_close()
+        except Exception:
+            pass
+        self.thread.join(timeout=3)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_shutdown_stops_server(self):
+        status, body = request(self.port, "POST", "/api/shutdown")
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(body)["ok"])
+        # serve_forever が抜ければスレッドは終了する（＝サーバ停止）
+        self.thread.join(timeout=5)
+        self.assertFalse(self.thread.is_alive())
+
+    def test_shutdown_get_not_allowed(self):
+        status, _ = request(self.port, "GET", "/api/shutdown")
+        self.assertEqual(status, 405)
+        self.assertTrue(self.thread.is_alive())  # GET では止まらない
+
+    def test_shutdown_disabled_returns_403(self):
+        self.server.remote_shutdown = False
+        status, body = request(self.port, "POST", "/api/shutdown")
+        self.assertEqual(status, 403)
+        self.assertFalse(json.loads(body)["ok"])
+        # 無効時は止まらず、後続リクエストにも応答する
+        self.assertTrue(self.thread.is_alive())
+        health_status, _ = request(self.port, "GET", "/api/health")
+        self.assertEqual(health_status, 200)
+
+    def test_disabled_health_reports_remote_shutdown_false(self):
+        self.server.remote_shutdown = False
+        _, body = request(self.port, "GET", "/api/health")
+        self.assertFalse(json.loads(body)["remoteShutdown"])
 
 
 # --- セッション継続のテスト（実 claude は呼ばず bridge.run_claude を差し替える） -----

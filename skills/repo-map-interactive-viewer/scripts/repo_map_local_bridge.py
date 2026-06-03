@@ -9,6 +9,8 @@
     1 ターン目 --session-id、以降 --resume）。claude は毎回起動・即終了で常駐しない。
   * 起動時、同ポートに残った『自分の』古いブリッジ（前回 Ctrl+C せず閉じて孤児化した等）を
     health で本人確認したうえで停止し、ポートを空けてから bind する（reclaim_port）。
+  * HTML からの POST /api/shutdown でブリッジ自身を停止する（既定 ON、--no-remote-shutdown で無効化）。
+    Ctrl+C と同じ通常停止経路（server_close）を通る。
 
 設計上の境界:
   * 描画はしない（notation-render の責務）。HTML は受け取って配信するだけ。
@@ -83,6 +85,7 @@ class BridgeConfig:
     default_model: str | None = None           # UI 初期選択モデル（allowed_models のいずれか）
     default_effort: str | None = None          # UI 初期選択 effort（ALLOWED_EFFORTS のいずれか）
     reclaim: bool = True                       # 起動時に同ポートの古い自分のブリッジを掃除するか
+    remote_shutdown: bool = True               # HTML から POST /api/shutdown でブリッジを停止できるか
 
 
 # --- パス・ジェイル ----------------------------------------------------------
@@ -344,7 +347,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
             self._serve_html()
         elif path == "/api/health":
             self._serve_health()
-        elif path in ("/api/ask", "/api/reset"):
+        elif path in ("/api/ask", "/api/reset", "/api/shutdown"):
             self._send_json(405, {"ok": False, "error": "method not allowed (use POST)"})
         else:
             self._send_json(404, {"ok": False, "error": "not found"})
@@ -357,6 +360,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
             self._handle_ask()
         elif path == "/api/reset":
             self._handle_reset()
+        elif path == "/api/shutdown":
+            self._handle_shutdown()
         else:
             self._send_json(404, {"ok": False, "error": "not found"})
 
@@ -387,6 +392,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
             "allowedTools": self.config.allowed_tools,
             "sessionContinuity": getattr(self.server, "session_continuity", True),
             "sessionId": getattr(self.server, "session_id", None),
+            "remoteShutdown": getattr(self.server, "remote_shutdown", True),
             "availableModels": list(self.config.allowed_models),
             "availableEfforts": list(ALLOWED_EFFORTS),
             "defaultModel": self.config.default_model,
@@ -479,6 +485,29 @@ class BridgeHandler(BaseHTTPRequestHandler):
             srv.session_epoch += 1
         self._send_json(200, {"ok": True, "sessionContinuity": getattr(srv, "session_continuity", True)})
 
+    def _handle_shutdown(self):
+        """ブラウザからの要求でブリッジを停止する（localhost 限定・Host 検査済み）。
+
+        --no-remote-shutdown で無効化できる（その場合 403）。レスポンスを返してから
+        別スレッドで server.shutdown() を呼び、serve() の finally（server_close）を
+        通常停止経路で通す。同じスレッドで shutdown() するとレスポンスを返せず、
+        serve_forever の停止待ちでデッドロックし得るため、必ず別スレッドにする。
+        """
+        srv = self.server
+        if not getattr(srv, "remote_shutdown", True):
+            self._send_json(403, {"ok": False, "error": "リモート停止は無効です（--no-remote-shutdown）。"})
+            return
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > MAX_BODY_BYTES:
+            self.close_connection = True
+            self._send_json(413, {"ok": False, "error": "リクエストが大きすぎます。"})
+            return
+        if length > 0:
+            self.rfile.read(length)  # ボディは使わないが、接続を汚さないよう読み捨てる
+        self._send_json(200, {"ok": True, "message": "ブリッジを停止します。"})
+        self.wfile.flush()           # 停止前にレスポンスを確実に送り切る
+        threading.Thread(target=srv.shutdown, daemon=True).start()
+
     # --- 補助 ---
 
     def _check_host(self) -> bool:
@@ -523,6 +552,7 @@ class BridgeServer(ThreadingHTTPServer):
         self.session_id = None
         self.session_epoch = 0
         self.session_continuity = True
+        self.remote_shutdown = True
 
 
 # --- ポート確保（同ポートに残った自分のブリッジを掃除する） -------------------
@@ -721,6 +751,9 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--no-reclaim", action="store_true",
                         help="起動時に同ポートの古い repo-map ブリッジを自動停止しない"
                              "（既定は自動停止 ON。別アプリが使用中なら停止せず bind 失敗で中止）")
+    parser.add_argument("--no-remote-shutdown", action="store_true",
+                        help="HTML からの POST /api/shutdown でブリッジを停止する機能を無効化する"
+                             "（既定は有効。無効時は停止ボタンを出さず、要求は 403 を返す）")
     return parser.parse_args(argv)
 
 
@@ -761,6 +794,7 @@ def build_config(args: argparse.Namespace) -> BridgeConfig:
         default_model=default_model,
         default_effort=args.default_effort,
         reclaim=not args.no_reclaim,
+        remote_shutdown=not args.no_remote_shutdown,
     )
 
 
@@ -779,12 +813,14 @@ def serve(config: BridgeConfig):
         )
     server.bridge_config = config  # type: ignore[attr-defined]
     server.session_continuity = config.session_continuity
+    server.remote_shutdown = config.remote_shutdown
     install_shutdown_signals()   # SIGTERM でも finally の server_close を通す
     url = f"http://127.0.0.1:{config.port}/repo-map.html"
     sys.stderr.write(f"[bridge] listening on {url}\n")
     sys.stderr.write(f"[bridge] repo-root: {config.repo_root}\n")
     sys.stderr.write(f"[bridge] claude: {'found' if resolve_claude(config.claude_bin) else 'NOT FOUND'}\n")
     sys.stderr.write(f"[bridge] session continuity: {'on' if config.session_continuity else 'off'}\n")
+    sys.stderr.write(f"[bridge] remote shutdown: {'on' if config.remote_shutdown else 'off'}\n")
     models_label = ",".join(config.allowed_models) if config.allowed_models else "(none)"
     sys.stderr.write(
         f"[bridge] models: {models_label} "

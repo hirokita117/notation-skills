@@ -49,7 +49,7 @@ DSL 生成は [`repo-map-notation`](../repo-map-notation/SKILL.md) の責務。�
 
 | 方式 | いつ使う | 仕組み |
 |------|----------|--------|
-| **localhost bridge** | ローカルで `claude` が使え、HTML から直接質問したい | Python ブリッジが HTML を `http://127.0.0.1:<port>/repo-map.html` で配信。Ask ボタン → `/api/ask` に POST → `claude -p` を呼んで回答を返す。**質問は同じ会話として継続**（サーバ生成 UUID を持ち回り、`claude` は毎回起動・即終了で常駐しない）。「新しい会話」＝ `/api/reset`、`--no-session-continuity` で無効化。 |
+| **localhost bridge** | ローカルで `claude` が使え、HTML から直接質問したい | Python ブリッジが HTML を `http://127.0.0.1:<port>/repo-map.html` で配信。Ask ボタン → `/api/ask` に POST → `claude -p` を呼んで回答を返す。**質問は同じ会話として継続**（サーバ生成 UUID を持ち回り、`claude` は毎回起動・即終了で常駐しない）。「新しい会話」＝ `/api/reset`、`--no-session-continuity` で無効化。**ブリッジを停止**ボタン＝ `/api/shutdown`（`--no-remote-shutdown` で無効化）。 |
 | **prompt copy** | ブリッジを使わない／`file://` で開いた／別マシン | HTML がノード情報＋質問から **プロンプトを生成**。Copy ボタンでクリップボード（不可なら textarea 表示）。それを手元の Claude Code に貼る。 |
 
 どちらの方式でも **同じプロンプト**が得られる（ブリッジ側 `build_prompt` と HTML 側 `buildPrompt`
@@ -80,7 +80,8 @@ DSL 生成は [`repo-map-notation`](../repo-map-notation/SKILL.md) の責務。�
 3. ノードをクリック → 質問を入力 → **Ask Claude Code**（ブリッジ）または **Copy prompt**（コピー方式）。
 4. 続けて質問すると**同じ会話として継続**する（別ノードをクリックしても継続）。話題を切り替えたいときは
    **新しい会話**ボタン（`/api/reset`）でリセット。
-5. 停止は **Ctrl+C**。
+5. 停止は **Ctrl+C**、または HTML の **ブリッジを停止**ボタン（`/api/shutdown`）。ボタン停止後はタブの
+   自動クローズを best-effort で試み、閉じられない環境では停止オーバーレイを表示する。無効化は `--no-remote-shutdown`。
 
 `file://` で HTML を直接開いた場合は Ask は使えないが、**Copy prompt 方式は動く**
 （その場合の継続は、貼り付け先のあなた自身の Claude セッションで成立する）。

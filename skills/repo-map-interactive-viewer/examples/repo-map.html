@@ -15,7 +15,7 @@
 <style>
   :root {
     --fg: #111827; --muted: #6B7280; --border: #E5E7EB; --bg: #FFFFFF;
-    --accent: #2563EB; --focus: #F59E0B;
+    --accent: #2563EB; --focus: #F59E0B; --danger: #DC2626;
     --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
@@ -46,6 +46,8 @@
   button { font-family: var(--font); font-size: 13px; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border);
     background: #fff; cursor: pointer; }
   button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.danger { color: var(--danger); border-color: var(--danger); }
+  button.danger:hover { background: var(--danger); color: #fff; }
   button:disabled { opacity: .5; cursor: not-allowed; }
   .status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
   .session { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
@@ -81,6 +83,11 @@
     border-radius: 6px; background: #fff; }
   textarea#prompt-fallback { width: 100%; min-height: 140px; font-family: var(--mono); font-size: 12px; margin-top: 8px;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px; display: none; }
+  /* ブリッジ停止後の全面オーバーレイ（タブが閉じられない場合の明示的な無効状態） */
+  #stopped-overlay { position: fixed; inset: 0; z-index: 1000; display: none;
+    align-items: center; justify-content: center; text-align: center; padding: 24px;
+    background: rgba(255,255,255,.96); color: var(--fg); font-size: 15px; line-height: 1.6; }
+  #stopped-overlay.on { display: flex; }
 </style>
 </head>
 <body>
@@ -179,6 +186,7 @@
         <button class="primary" id="btn-ask">Ask Claude Code</button>
         <button id="btn-reset" style="display:none">新しい会話</button>
         <button id="btn-copy">Copy prompt for Claude Code</button>
+        <button class="danger" id="btn-stop" style="display:none">ブリッジを停止</button>
       </div>
       <div class="model-controls" id="model-controls" style="display:none">
         <label class="mc-label">model
@@ -196,6 +204,9 @@
     </div>
   </aside>
 </div>
+
+<!-- ブリッジ停止後の表示（タブを自動で閉じられないブラウザ向けの明示的な無効状態） -->
+<div id="stopped-overlay">ブリッジを停止しました。このタブは閉じてかまいません。</div>
 
 <script>
 (function () {
@@ -222,6 +233,10 @@
     fetch("/api/health").then(function (r) { return r.json(); }).then(function (h) {
       populateSelect("sel-model", (h && h.availableModels) || [], h && h.defaultModel);
       populateSelect("sel-effort", (h && h.availableEfforts) || [], h && h.defaultEffort);
+      // remoteShutdown が明示的に false でなければ停止ボタンを出す（未対応な古いブリッジでも表示）
+      if (!h || h.remoteShutdown !== false) {
+        document.getElementById("btn-stop").style.display = "";
+      }
       if (h && h.sessionContinuity === false) {
         setSessionLine("会話: 継続オフ（質問ごとに独立。--no-session-continuity で起動中）");
         document.getElementById("btn-reset").style.display = "none";
@@ -465,6 +480,21 @@
       });
   }
 
+  // ブリッジを停止する。成功時も接続が切れた時も「停止した」とみなしてオーバーレイを出す。
+  function doStop() {
+    if (!isBridge) return;
+    document.getElementById("btn-stop").disabled = true;
+    document.getElementById("status").textContent = "ブリッジを停止しています…";
+    fetch("/api/shutdown", { method: "POST" }).then(showStopped, showStopped);
+  }
+
+  // 停止後の表示。タブのクローズはベストエフォート（多くのブラウザは window.close() を無視するため
+  // オーバーレイで「閉じてよい」ことを明示する）。
+  function showStopped() {
+    document.getElementById("stopped-overlay").classList.add("on");
+    try { window.close(); } catch (e) { /* スクリプトが開いていないタブは閉じられない */ }
+  }
+
   function doAsk() {
     var p = nodePayload();
     if (!p) return;
@@ -524,6 +554,7 @@
   document.getElementById("btn-ask").addEventListener("click", doAsk);
   document.getElementById("btn-copy").addEventListener("click", doCopy);
   document.getElementById("btn-reset").addEventListener("click", doReset);
+  document.getElementById("btn-stop").addEventListener("click", doStop);
 })();
 </script>
 </body>

@@ -66,7 +66,7 @@ web core imports
 ```json
 { "ok": true, "repoRoot": "...", "html": "...", "dsl": "... or null",
   "claude": true, "permissionMode": "plan", "allowedTools": "Read,Glob,Grep",
-  "sessionContinuity": true, "sessionId": "... or null",
+  "sessionContinuity": true, "sessionId": "... or null", "remoteShutdown": true,
   "availableModels": ["opus","sonnet","haiku"],
   "availableEfforts": ["low","medium","high","xhigh","max"],
   "defaultModel": "sonnet or null", "defaultEffort": "medium or null" }
@@ -74,6 +74,8 @@ web core imports
 
 `sessionContinuity` は継続が有効か、`sessionId` は進行中の会話 ID（未開始なら `null`）。
 どちらも **best-effort**（表示用。厳密な同期は保証しない）。
+`remoteShutdown` は HTML からのブリッジ停止（`POST /api/shutdown`）が有効か。
+HTML はこれが `false` でないときだけ停止ボタンを出す。
 `availableModels` はサーバ `--models` 由来のモデル許可リスト、`availableEfforts` は CLI 固定の effort 列挙。
 `defaultModel` / `defaultEffort` は UI セレクトの初期選択（`null` なら `(default)`）。HTML はこれらでセレクトを構築する。
 
@@ -129,6 +131,19 @@ HTML エスケープ後にサブセットを描画）で HTML 描画する。失
 
 冪等。実行中の `/api/ask` に**ブロックされず即返る**（リセットが進行中 ask に勝つ）。
 
+### `POST /api/shutdown`（任意・localhost 限定）
+ブリッジ自身を停止する。`200` を返してから別スレッドで停止し、`Ctrl+C` と同じ通常停止経路
+（`server_close`）を通る。リクエストボディは無視（送っても可・上限ガードあり）。
+
+```json
+{ "ok": true, "message": "ブリッジを停止します。" }
+```
+
+`--no-remote-shutdown` で無効化でき、その場合は `403` ＋ `ok:false` を返す（`/api/health` の
+`remoteShutdown` も `false`）。停止後はブラウザのタブクローズを **best-effort** で試みる
+（`window.close()`。多くのブラウザはスクリプトが開いていないタブを閉じないため、HTML 側は
+「停止しました。閉じてかまいません」のオーバーレイで明示的な無効状態を示す）。
+
 ### セッション継続（重要）
 
 - 同一ブリッジ起動中の質問は、既定で **1 つの Claude 会話として継続**する。
@@ -172,6 +187,8 @@ HTML 側 `buildPrompt` は、ブリッジ側 `build_prompt`（[local-bridge.md](
 - **model / effort 選択 `<select>`**（`/api/health` の `availableModels` / `availableEfforts` から構築、
   初期選択は `defaultModel` / `defaultEffort`。copy モードでは非表示）。送信中の **ローディング表示（スピナー等）**。
 - 回答の **Markdown 描画**（自己完結インラインレンダラ・CDN 不使用）。最小実装は example 参照。
+- **ブリッジ停止ボタン**（`POST /api/shutdown`・bridge モードのみ・`/api/health` の `remoteShutdown` が
+  `false` でないとき表示）。押下後はタブクローズを best-effort で試み、閉じられない場合は停止オーバーレイを出す。
 
 凡例（kind の色・線種）は DSL 非依存の固定マークアップ。最小実装の参照は
 [`../examples/repo-map.html`](../examples/repo-map.html)。
