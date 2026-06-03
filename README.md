@@ -43,28 +43,66 @@
 
 ## インストール
 
-### 推奨: Plugin として導入（Claude Code）
+導入方法は大きく **2 つ** あります。**基本は方法 A（plugin）で十分**です。「素のファイルとして `~/.claude/skills/` に置きたい」など特別な理由があるときだけ方法 B を選びます。
 
-このリポジトリは Claude Code の **plugin marketplace** として公開しています。2 コマンドで導入できます。
+### 方法 A: Plugin として導入（推奨）
+
+このリポジトリは Claude Code の **plugin marketplace** として公開しています。次の 2 コマンドを **一度だけ** 実行すれば導入完了です。
 
 ```
 /plugin marketplace add hirokita117/notation-skills
 /plugin install notation-skills@notation-skills
 ```
 
-導入後、3 つの Skill は名前空間付きで利用できます（例: `notation-skills:repo-map-notation`）。
+導入後、3 つの Skill は名前空間付きで使えます（例: `notation-skills:repo-map-notation`）。
 
 - 更新を取り込む: `/plugin marketplace update`
 - セッションに反映: `/reload-plugins`
 
+#### どのリポジトリで使える？ — scope の考え方
+
+`install` には **scope**（有効範囲）があり、**既定は `user`**＝**あなたの全プロジェクトで使える**状態になります。リポジトリごとに入れ直す必要はありません。範囲を変えたいときだけ `--scope` を付けます。
+
+| scope | 効く範囲 | 記録先 | 使いどころ |
+|---|---|---|---|
+| `user`（既定） | 自分の全プロジェクト | `~/.claude/settings.json` | 自分用に常に使いたい |
+| `project` | そのリポジトリ（**チーム共有**） | `<repo>/.claude/settings.json`（git にコミット） | チーム全員に配りたい |
+| `local` | そのリポジトリ（自分だけ） | `<repo>/.claude/settings.local.json`（git 管理外） | 試用・個人検証 |
+
+```
+# 例: 特定リポジトリのチーム全員に配る
+/plugin install notation-skills@notation-skills --scope project
+```
+
+> 補足: 「ユーザー全体で使いたい」だけなら、既定の `user` scope で入れるこの方法 A がそのまま答えです。実体はプラグインキャッシュ（`~/.claude/plugins/...`）に置かれ、`marketplace update` で更新追従できます。`~/.claude/skills/` には物理的にコピーされませんが、全プロジェクトで使える点は同じです。
+
 > 公開範囲について: このリポジトリは public ですが、plugin 化は中央レジストリへの登録ではありません。`/plugin marketplace add hirokita117/notation-skills` はこの GitHub リポジトリをクローンするだけで、検索カタログに自動掲載されることはありません。導入の手軽さが上がるだけで、到達範囲は通常の public リポジトリと同じです。
 
-### 代替: 手動コピー
+### 方法 B: `skills/` を手動コピー
 
-plugin 非対応の環境では、`skills/` 配下を直接配置しても使えます。
+plugin を使わず、**素の Skill ファイルとして直接置きたい**場合（plugin 非対応ツールで読みたい等）はこちら。clone して `skills/` 配下をコピーします。
 
-- 個人用（全プロジェクト共通）: `~/.claude/skills/` にコピー
-- プロジェクト用（チーム共有）: 対象リポジトリの `.claude/skills/` にコピー
+```
+git clone https://github.com/hirokita117/notation-skills.git
+
+# 個人用（全プロジェクト共通）
+cp -r notation-skills/skills/* ~/.claude/skills/
+
+# または プロジェクト用（チーム共有・git にコミット）
+cp -r notation-skills/skills/* <対象リポジトリ>/.claude/skills/
+```
+
+呼び出し名は名前空間なしの素の名前（`notation-core` など）になります。ただし **自動更新はされない** ため、更新時は再コピーが必要です。
+
+### A と B の比較
+
+| | 方法 A（plugin・推奨） | 方法 B（手動コピー） |
+|---|---|---|
+| 導入 | 2 コマンド | clone + cp |
+| 全プロジェクトで有効 | ✅（既定の `user` scope） | ✅（`~/.claude/skills/` の場合） |
+| チームに配る | ✅（`--scope project`） | ✅（repo の `.claude/skills/`） |
+| 更新追従 | ✅ `marketplace update` | ❌ 手動で再コピー |
+| 呼び出し名 | `notation-skills:xxx` | `xxx`（素の名前） |
 
 ---
 
