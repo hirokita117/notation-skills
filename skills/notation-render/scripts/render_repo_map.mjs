@@ -1,16 +1,15 @@
 #!/usr/bin/env node
-// render_repo_map — CLI ファサード（DSL → SVG / HTML / JSON / Mermaid）
+// render_repo_map — CLI ファサード（DSL → HTML / JSON / Mermaid）
 //
 // パイプライン parse → validate → layout → emit を 1 本のコマンドにまとめる実行可能レンダラー。
 // 入力は DSL テキストのみ（リポジトリを再走査しない）。同じ DSL からは同じ出力（決定的）。
 // 仕様の正本は repo-map-notation/references/grammar.md と notation-render/references/*.md。
 //
 // 使い方:
-//   node render_repo_map.mjs input.repo-map --format svg  > out.svg
 //   node render_repo_map.mjs input.repo-map --format html > out.html
 //   cat input.repo-map | node render_repo_map.mjs - --format json
 //
-// --format svg|html|json|mermaid（既定 svg）。json は parse/validate/layout 後の内部モデル確認用。
+// --format html|json|mermaid（既定 html）。json は parse/validate/layout 後の内部モデル確認用。
 // 出力は stdout、診断は stderr。終了コード: 0 正常 / 1 検証エラー（描画せず）/ 2 使用法エラー。
 
 import { readFileSync, realpathSync } from "node:fs";
@@ -19,7 +18,6 @@ import { fileURLToPath } from "node:url";
 import { parse } from "./parser.mjs";
 import { validate } from "./validator.mjs";
 import { computeLayout } from "./layout.mjs";
-import { emitSvg } from "./svg_emitter.mjs";
 import { emitHtml } from "./html_emitter.mjs";
 import { emitMermaid } from "./mermaid_emitter.mjs";
 import { sortDiagnostics, formatDiagnostics, hasError } from "./diagnostics.mjs";
@@ -28,25 +26,24 @@ import { sortDiagnostics, formatDiagnostics, hasError } from "./diagnostics.mjs"
 export { parse } from "./parser.mjs";
 export { validate } from "./validator.mjs";
 export { computeLayout } from "./layout.mjs";
-export { emitSvg } from "./svg_emitter.mjs";
 export { emitHtml } from "./html_emitter.mjs";
 export { emitMermaid } from "./mermaid_emitter.mjs";
 export { sortDiagnostics, formatDiagnostics, hasError } from "./diagnostics.mjs";
 
-const FORMATS = new Set(["svg", "html", "json", "mermaid"]);
+const FORMATS = new Set(["html", "json", "mermaid"]);
 
 // --- 純関数: テキスト → 出力 ---
 
 /**
  * DSL テキストを 1 形式へレンダリングする純関数。
  * @param {string} text  DSL 本文
- * @param {"svg"|"html"|"json"|"mermaid"} format
+ * @param {"html"|"json"|"mermaid"} format
  * @param {string|null} [sourcePath]  入力 DSL の絶対パス（html のみ使用）。`<html data-repo-map-dsl>`
  *   に埋め込み、Viewer の Copy プロンプトの `repo-map DSL file:` 行に使う。stdin 等で不明なら null（埋め込まない）。
  * @returns {{ ok: boolean, output: string, diagnostics: object[] }}
  *   ok=false（error あり）なら output は空文字。diagnostics は警告も含む（描画時も報告する）。
  */
-export function render(text, format = "svg", sourcePath = null) {
+export function render(text, format = "html", sourcePath = null) {
   const { repoMap, diagnostics: parseDiags, info, fatal } = parse(text);
   const all = sortDiagnostics(fatal ? parseDiags : parseDiags.concat(validate(repoMap, info)));
 
@@ -59,7 +56,7 @@ export function render(text, format = "svg", sourcePath = null) {
     output = emitMermaid(repoMap);
   } else {
     const layout = computeLayout(repoMap);
-    output = format === "html" ? emitHtml(repoMap, layout, { sourcePath }) : emitSvg(repoMap, layout);
+    output = emitHtml(repoMap, layout, { sourcePath });
   }
   return { ok: true, output, diagnostics: all };
 }
@@ -93,7 +90,7 @@ export function toJson(repoMap) {
 // --- CLI ---
 
 function parseArgs(argv) {
-  let format = "svg";
+  let format = "html";
   let input = null; // ファイルパス、"-"、または null（=stdin）
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -115,7 +112,7 @@ function parseArgs(argv) {
 }
 
 const USAGE =
-  "usage: render_repo_map.mjs [input.repo-map | -] --format svg|html|json|mermaid\n" +
+  "usage: render_repo_map.mjs [input.repo-map | -] --format html|json|mermaid\n" +
   "  入力を省略 / `-` で stdin。出力は stdout、診断は stderr。\n" +
   "  終了コード: 0 正常 / 1 検証エラー / 2 使用法エラー。\n";
 
@@ -140,7 +137,7 @@ export function main(argv, io = {}) {
   }
 
   // html 用に入力 DSL の絶対パスを解決して埋め込む（stdin / `-` は不明なので null）。
-  // readFileSync 成功後なので realpathSync は存在保証あり。svg/json/mermaid では未使用。
+  // readFileSync 成功後なので realpathSync は存在保証あり。json/mermaid では未使用。
   const sourcePath = args.input && args.input !== "-" ? realpathSync(args.input) : null;
 
   const result = render(text, args.format, sourcePath);

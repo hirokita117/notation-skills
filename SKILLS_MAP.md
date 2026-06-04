@@ -10,7 +10,7 @@
 |------|-------|------|------|-----------|
 | 0 | `notation-core` | 共通土台（記法中心設計の思想・用語・原則・検証観） | 原則 | 初回・設計判断に迷ったとき（毎回は不要） |
 | 1 | `repo-map-notation` | リポジトリ構造を `repo-map v1` DSL に落とす | `repo-map v1` テキスト | 「図解して」「アーキテクチャ地図」 |
-| 2 | `notation-render` | DSL **だけ**を読んで図にする（決定的） | SVG / HTML / JSON（任意で Mermaid）。主経路は実行可能レンダラー `scripts/render_repo_map.mjs` | 「この DSL を SVG に」 |
+| 2 | `notation-render` | DSL **だけ**を読んで図にする（決定的） | HTML / JSON（任意で Mermaid）。主経路は実行可能レンダラー `scripts/render_repo_map.mjs` | 「この DSL を HTML に」 |
 | ＋ | `repo-map-interactive-viewer` | 生成済みインタラクティブ HTML をローカル Claude Code とつなぐ対話ビューア（**描画はしない**・DSL 正本も変えない） | ブリッジ起動手順・質問→回答 | 「HTML をクリックして Claude に質問したい」 |
 
 ---
@@ -28,7 +28,7 @@
   notation-render          ← parse → validate → layout → emit
         │
         ▼
-   SVG / HTML
+       HTML
 ```
 
 - `notation-core` はこのパイプラインの**外側にある土台**です。原則に立ち返りたいとき、新しい記法を設計したいときに読みます。
