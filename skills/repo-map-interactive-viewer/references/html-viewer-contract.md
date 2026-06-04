@@ -197,6 +197,9 @@ HTML 側 `buildPrompt` は、ブリッジ側 `build_prompt`（[bridge-claude-inv
 
 ## 4. UI 要件（最小）
 
+図エリアは質問パネルの上に配置する。ノードのドラッグ移動で使える面積を確保するため、図エリアは
+`resize` 可能なスクロール領域として、ユーザーが必要に応じて広げられるようにする。
+
 ノードクリック時にパネルへ表示する:
 
 - node id / label / kind / path / related edges / DSL excerpt

@@ -24,15 +24,17 @@
   header { padding: 12px 16px; border-bottom: 1px solid var(--border); }
   header h1 { font-size: 15px; margin: 0; }
   header .mode { font-size: 12px; color: var(--muted); margin-top: 4px; }
-  .layout { display: flex; align-items: flex-start; gap: 16px; padding: 16px; flex-wrap: wrap; }
-  .diagram { border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+  .layout { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+  .diagram-pane { width: 100%; height: min(72vh, 720px); min-height: 360px; min-width: 300px;
+    resize: both; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff; padding: 8px; }
+  .diagram { display: block; background: #fff; }
   .node { cursor: pointer; }
   .node:hover rect { stroke: var(--focus); stroke-width: 3; }
   .node.selected rect { stroke: var(--focus); stroke-width: 3; }
   .legend { font-size: 12px; color: var(--muted); padding: 8px 4px; }
   .legend span.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin: 0 4px 0 10px; }
   /* panel */
-  .panel { width: 380px; min-width: 300px; flex: 1 1 320px; border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .panel { width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
   .panel h2 { font-size: 13px; margin: 0 0 8px; }
   .panel .empty { color: var(--muted); font-size: 13px; }
   .field { margin: 6px 0; font-size: 13px; }
@@ -98,7 +100,7 @@
 
 <div class="layout">
   <!-- ===== 図（SVG）: data-* はすべて DSL から決定的に導出 ===== -->
-  <div>
+  <section class="diagram-pane" aria-label="repo-map diagram">
     <svg class="diagram" width="620" height="360" viewBox="0 0 620 360" xmlns="http://www.w3.org/2000/svg" font-family="Inter, ui-sans-serif, system-ui, sans-serif">
       <defs>
         <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
@@ -164,9 +166,9 @@
       <span class="sw" style="background:#7C3AED"></span>datastore
       ／ 実線=構造（contains/deploys/owns）, 破線=依存（imports/calls/reads）
     </div>
-  </div>
+  </section>
 
-  <!-- ===== 質問サイドパネル ===== -->
+  <!-- ===== 質問パネル ===== -->
   <aside class="panel" id="panel">
     <h2>選択中のノード</h2>
     <div id="node-empty" class="empty">図のノードをクリックすると、ここに詳細が表示されます。</div>

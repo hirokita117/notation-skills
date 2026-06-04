@@ -37,6 +37,15 @@ test("contract: fixed DOM ids, legend, buildPrompt, renderMarkdown, mode switch"
   assert.ok(h.includes('<svg class="diagram"'));
 });
 
+test("layout: diagram pane stacks above the full-width panel and is resizable", () => {
+  const h = htmlOf("example-a.dsl");
+  assert.ok(h.includes('<section class="diagram-pane" aria-label="repo-map diagram">'));
+  assert.ok(h.indexOf('<section class="diagram-pane"') < h.indexOf('<aside class="panel" id="panel">'));
+  assert.ok(h.includes(".layout { display: flex; flex-direction: column;"));
+  assert.ok(h.includes("resize: both; overflow: auto;"));
+  assert.ok(h.includes(".panel { width: 100%; min-width: 0;"));
+});
+
 test("drag additions: edges carry data-from/to/rel + class=edge; nodes carry data-x/y; drag JS present", () => {
   const h = htmlOf("example-a.dsl");
   const lines = h.match(/<line class="edge"[^>]*><\/line>/g) || [];
