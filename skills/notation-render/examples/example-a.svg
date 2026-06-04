@@ -1,0 +1,61 @@
+<svg width="1008" height="336" viewBox="0 0 1008 336" xmlns="http://www.w3.org/2000/svg" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#4B5563"></path>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1008" height="336" fill="#FFFFFF"></rect>
+  <line class="edge" data-from="monorepo" data-to="web" data-rel="contains" x1="104" y1="72" x2="104" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="monorepo" data-to="mobile" data-rel="contains" x1="104" y1="72" x2="304" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="monorepo" data-to="core" data-rel="contains" x1="104" y1="72" x2="504" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="monorepo" data-to="authsvc" data-rel="contains" x1="104" y1="72" x2="704" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="monorepo" data-to="billsvc" data-rel="contains" x1="104" y1="72" x2="904" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="web" data-to="core" data-rel="imports" x1="184" y1="168" x2="424" y2="168" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="mobile" data-to="core" data-rel="imports" x1="384" y1="168" x2="424" y2="168" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="authsvc" data-to="core" data-rel="imports" x1="784" y1="168" x2="424" y2="168" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="billsvc" data-to="core" data-rel="imports" x1="984" y1="168" x2="424" y2="168" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="authsvc" data-to="db" data-rel="reads" x1="704" y1="192" x2="104" y2="264" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="billsvc" data-to="db" data-rel="reads" x1="904" y1="192" x2="104" y2="264" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="billsvc" data-to="email" data-rel="calls" x1="904" y1="192" x2="304" y2="264" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <g class="node" data-node-id="monorepo" data-label="Acme Platform" data-kind="system" data-path="" data-related-edges="monorepo web contains&#10;monorepo mobile contains&#10;monorepo core contains&#10;monorepo authsvc contains&#10;monorepo billsvc contains" data-dsl-excerpt="monorepo system &quot;Acme Platform&quot;&#10;monorepo web contains&#10;monorepo mobile contains&#10;monorepo core contains&#10;monorepo authsvc contains&#10;monorepo billsvc contains" data-x="24" data-y="24" transform="translate(24,24)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#1F2937" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Acme Platform</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">monorepo</text>
+  </g>
+  <g class="node" data-node-id="web" data-label="Web App" data-kind="package" data-path="apps/web" data-related-edges="monorepo web contains&#10;web core imports" data-dsl-excerpt="web package &quot;Web App&quot; apps/web&#10;monorepo web contains&#10;web core imports" data-x="24" data-y="144" transform="translate(24,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Web App</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">web</text>
+  </g>
+  <g class="node" data-node-id="mobile" data-label="Mobile App" data-kind="package" data-path="apps/mobile" data-related-edges="monorepo mobile contains&#10;mobile core imports" data-dsl-excerpt="mobile package &quot;Mobile App&quot; apps/mobile&#10;monorepo mobile contains&#10;mobile core imports" data-x="224" data-y="144" transform="translate(224,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Mobile App</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">mobile</text>
+  </g>
+  <g class="node" data-node-id="core" data-label="Shared Core" data-kind="package" data-path="packages/core" data-related-edges="monorepo core contains&#10;web core imports&#10;mobile core imports&#10;authsvc core imports&#10;billsvc core imports" data-dsl-excerpt="core package &quot;Shared Core&quot; packages/core&#10;monorepo core contains&#10;web core imports&#10;mobile core imports&#10;authsvc core imports&#10;billsvc core imports" data-x="424" data-y="144" transform="translate(424,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Shared Core</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">core</text>
+  </g>
+  <g class="node" data-node-id="authsvc" data-label="Auth Service" data-kind="package" data-path="services/auth" data-related-edges="monorepo authsvc contains&#10;authsvc core imports&#10;authsvc db reads" data-dsl-excerpt="authsvc package &quot;Auth Service&quot; services/auth&#10;monorepo authsvc contains&#10;authsvc core imports&#10;authsvc db reads" data-x="624" data-y="144" transform="translate(624,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Auth Service</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">authsvc</text>
+  </g>
+  <g class="node" data-node-id="billsvc" data-label="Billing Service" data-kind="package" data-path="services/billing" data-related-edges="monorepo billsvc contains&#10;billsvc core imports&#10;billsvc db reads&#10;billsvc email calls" data-dsl-excerpt="billsvc package &quot;Billing Service&quot; services/billing&#10;monorepo billsvc contains&#10;billsvc core imports&#10;billsvc db reads&#10;billsvc email calls" data-x="824" data-y="144" transform="translate(824,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Billing Service</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">billsvc</text>
+  </g>
+  <g class="node" data-node-id="db" data-label="Postgres" data-kind="datastore" data-path="" data-related-edges="authsvc db reads&#10;billsvc db reads" data-dsl-excerpt="db datastore Postgres&#10;authsvc db reads&#10;billsvc db reads" data-x="24" data-y="264" transform="translate(24,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#7C3AED" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Postgres</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">db</text>
+  </g>
+  <g class="node" data-node-id="email" data-label="Email Provider" data-kind="external" data-path="" data-related-edges="billsvc email calls" data-dsl-excerpt="email external &quot;Email Provider&quot;&#10;billsvc email calls" data-x="224" data-y="264" transform="translate(224,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#9CA3AF" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#111827" font-size="13">Email Provider</text>
+    <text x="80" y="38" text-anchor="middle" fill="#111827" font-size="10" opacity="0.8">email</text>
+  </g>
+  <rect class="focus-frame" data-focus-for="core" x="421" y="141" width="166" height="54" rx="10" fill="none" stroke="#F59E0B" stroke-width="3"></rect>
+</svg>

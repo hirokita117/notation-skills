@@ -55,6 +55,28 @@ web core imports
 > いずれも DSL から一意に決まる（同じ DSL → 同じ属性値）。レイアウト座標や色はテーマ定数で決まり、
 > メタデータには**意味づけを足さない**。
 
+### ノード/エッジのドラッグ用属性（任意拡張・view-time のみ）
+
+閲覧時にノードを掴んで動かせるようにするため、出力 SVG は次の**任意・加算的**属性を付けてよい。
+
+- 各ノード `<g class="node">`: `data-x` / `data-y`（決定的レイアウトの初期整数座標）。位置は `transform="translate(x,y)"` で与える（ラベル・ID は `<g>` 内に置くのでノードと一緒に動く）。
+- 各エッジ `<line>`: `class="edge"` と `data-from` / `data-to` / `data-rel`（接続先と relation）。ドラッグ時に線端を再計算するため。
+
+いずれも **DSL から決定的に導出**され（同じ DSL → 同じ属性値）、未知属性は既存コンシューマ（ブリッジ等）が無視するので**後方互換**。**ドラッグは view-time の表示操作のみで、出力ファイル＝リロード時の初期レイアウトを一切変えない**（決定性は壊さない）。DSL 文法は不変。
+
+### ドキュメントの DSL 正本パス（`data-repo-map-dsl`・任意）
+
+ルート要素 `<html>` に、入力 DSL 正本ファイルの**絶対パス**を任意属性 `data-repo-map-dsl` として
+載せてよい（`notation-render` が生成時に CLI 入力ファイルパスを `realpathSync` で解決して付与。
+stdin など不明時は **属性を出さない**）。copy / `file://` モードの `buildPrompt` はこれを読み、
+プロンプトの `repo-map DSL file:` 行に使う（未付与なら `(未指定)`）。
+
+絶対パスにするのは cwd に依存せず解決できるため（Viewer を貼り付ける Claude セッションの作業ディレクトリは
+repo-root とは限らない）。属性は**任意・加算的**で、無くても既存コンシューマは無視する（後方互換）。
+**ブリッジ方式ではこの属性は使わない**（サーバが `--dsl` から注入する。§2 と
+[bridge-claude-invocation.md](bridge-claude-invocation.md)）。同一ファイルでもブリッジ（`--dsl`）と
+copy（render 入力）で経路次第で表記が異なり得るが、どちらも絶対パスで cwd 非依存に解決できる。
+
 ---
 
 ## 2. ブリッジ API
@@ -121,6 +143,9 @@ HTML エスケープ後にサブセットを描画）で HTML 描画する。失
 - `path` は repo-root 配下のみ許可（外なら拒否）。
 - ボディ上限・各フィールド長上限あり（[security.md](security.md)）。
 - **client が送った `sessionId` / `session_id` は無視する**。会話 ID はサーバ生成（後述）。
+- **client は DSL 正本パスを送れない**（`dslFile` / `dslPath` 等の未知キーは従来どおり無視）。
+  プロンプトの `repo-map DSL file:` 行は、ブリッジが起動時 `--dsl` の絶対パスを**サーバ側で注入**する
+  （リクエスト JSON は不変・新フィールドなし。[security.md](security.md)）。
 
 ### `POST /api/reset`
 進行中の会話を破棄し、次の質問から新しい Claude 会話を始める。リクエストボディは無視（送っても可・上限ガードあり）。

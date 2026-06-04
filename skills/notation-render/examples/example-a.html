@@ -3,14 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>repo-map v1 — interactive viewer (example)</title>
+<title>repo-map v1 — interactive viewer</title>
 <!--
-  repo-map インタラクティブ Viewer の最小例。
-  これは notation-render が出す HTML 契約のリファレンス実装であり、
-  repo-map-interactive-viewer/references/html-viewer-contract.md に対応する。
-
-  正本は repo-map v1 DSL（examples/repo-map.dsl）。この HTML は派生物・理解補助 UI。
-  data-* の値はすべて DSL から決定的に導出される（固定テンプレート＋固定スクリプト）。
+  repo-map インタラクティブ Viewer。notation-render が DSL から決定的に生成。
+  契約は repo-map-interactive-viewer/references/html-viewer-contract.md。
+  data-* はすべて DSL から決定的に導出（固定テンプレート＋固定スクリプト）。
+  ノードはドラッグで移動できる（view-time のみ・初期レイアウトは不変）。
 -->
 <style>
   :root {
@@ -31,7 +29,6 @@
   .node.selected rect { stroke: var(--focus); stroke-width: 3; }
   .legend { font-size: 12px; color: var(--muted); padding: 8px 4px; }
   .legend span.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin: 0 4px 0 10px; }
-  /* panel */
   .panel { width: 380px; min-width: 300px; flex: 1 1 320px; border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
   .panel h2 { font-size: 13px; margin: 0 0 8px; }
   .panel .empty { color: var(--muted); font-size: 13px; }
@@ -51,7 +48,6 @@
   button:disabled { opacity: .5; cursor: not-allowed; }
   .status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
   .session { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
-  /* 回答（Markdown 描画） */
   .answer { font-family: var(--font); font-size: 13px; background: #F9FAFB; border: 1px solid var(--border);
     border-radius: 6px; padding: 10px; margin-top: 8px; overflow-wrap: anywhere; }
   .answer > *:first-child { margin-top: 0; }
@@ -70,90 +66,95 @@
   .answer blockquote { border-left: 3px solid var(--border); margin: 6px 0; padding-left: 10px; color: var(--muted); }
   .answer a { color: var(--accent); }
   .answer hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
-  /* 送信中スピナー（純 CSS アニメーション・JS タイマー無し） */
   .loading { display: none; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
   .loading.on { display: flex; }
   .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent);
     border-radius: 50%; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  /* model / effort 選択（bridge モードのみ表示） */
   .model-controls { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
   .mc-label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
   .mc-label select { font-family: var(--font); font-size: 12px; padding: 4px 6px; border: 1px solid var(--border);
     border-radius: 6px; background: #fff; }
   textarea#prompt-fallback { width: 100%; min-height: 140px; font-family: var(--mono); font-size: 12px; margin-top: 8px;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px; display: none; }
-  /* ブリッジ停止後の全面オーバーレイ（タブが閉じられない場合の明示的な無効状態） */
   #stopped-overlay { position: fixed; inset: 0; z-index: 1000; display: none;
     align-items: center; justify-content: center; text-align: center; padding: 24px;
     background: rgba(255,255,255,.96); color: var(--fg); font-size: 15px; line-height: 1.6; }
   #stopped-overlay.on { display: flex; }
+  /* ドラッグ用（view-time のみ・初期レイアウトは不変） */
+  svg.diagram { -webkit-user-select: none; user-select: none; touch-action: none; }
+  svg.diagram .node { cursor: grab; }
+  svg.diagram .node.dragging { cursor: grabbing; }
 </style>
 </head>
 <body>
 <header>
-  <h1>repo-map v1 — interactive viewer (example)</h1>
+  <h1>repo-map v1 — interactive viewer</h1>
   <div class="mode" id="mode-line">mode: 判定中…</div>
 </header>
-
 <div class="layout">
-  <!-- ===== 図（SVG）: data-* はすべて DSL から決定的に導出 ===== -->
   <div>
-    <svg class="diagram" width="620" height="360" viewBox="0 0 620 360" xmlns="http://www.w3.org/2000/svg" font-family="Inter, ui-sans-serif, system-ui, sans-serif">
-      <defs>
-        <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-          <path d="M0,0 L8,4 L0,8 z" fill="#4B5563"></path>
-        </marker>
-      </defs>
-
-      <!-- edges（先に描いてノードで上書き） -->
-      <line x1="280" y1="54" x2="120" y2="174" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
-      <line x1="280" y1="54" x2="440" y2="174" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
-      <line x1="120" y1="174" x2="440" y2="174" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
-      <line x1="440" y1="174" x2="440" y2="270" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
-
-      <!-- node: monorepo (system) -->
-      <g class="node"
-         data-node-id="monorepo" data-label="Acme Platform" data-kind="system" data-path=""
-         data-related-edges="monorepo web contains&#10;monorepo core contains"
-         data-dsl-excerpt="monorepo system &quot;Acme Platform&quot;&#10;monorepo web contains&#10;monorepo core contains">
-        <rect x="200" y="30" width="160" height="48" rx="8" fill="#1F2937" stroke="#111827"></rect>
-        <text x="280" y="52" text-anchor="middle" fill="#FFFFFF" font-size="13">Acme Platform</text>
-        <text x="280" y="68" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">monorepo</text>
-      </g>
-
-      <!-- node: web (package) -->
-      <g class="node"
-         data-node-id="web" data-label="Web App" data-kind="package" data-path="apps/web"
-         data-related-edges="monorepo web contains&#10;web core imports"
-         data-dsl-excerpt="web package &quot;Web App&quot; apps/web&#10;monorepo web contains&#10;web core imports">
-        <rect x="40" y="150" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827"></rect>
-        <text x="120" y="172" text-anchor="middle" fill="#FFFFFF" font-size="13">Web App</text>
-        <text x="120" y="188" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">web</text>
-      </g>
-
-      <!-- node: core (package) -->
-      <g class="node"
-         data-node-id="core" data-label="Shared Core" data-kind="package" data-path="packages/core"
-         data-related-edges="monorepo core contains&#10;web core imports&#10;core db reads"
-         data-dsl-excerpt="core package &quot;Shared Core&quot; packages/core&#10;monorepo core contains&#10;web core imports&#10;core db reads">
-        <rect x="360" y="150" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827"></rect>
-        <text x="440" y="172" text-anchor="middle" fill="#FFFFFF" font-size="13">Shared Core</text>
-        <text x="440" y="188" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">core</text>
-      </g>
-
-      <!-- node: db (datastore) -->
-      <g class="node"
-         data-node-id="db" data-label="Postgres" data-kind="datastore" data-path=""
-         data-related-edges="core db reads"
-         data-dsl-excerpt="db datastore Postgres&#10;core db reads">
-        <rect x="360" y="270" width="160" height="48" rx="8" fill="#7C3AED" stroke="#111827"></rect>
-        <text x="440" y="292" text-anchor="middle" fill="#FFFFFF" font-size="13">Postgres</text>
-        <text x="440" y="308" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">db</text>
-      </g>
-    </svg>
-
-    <!-- 凡例（DSL 非依存の固定マークアップ） -->
+<svg class="diagram" width="1008" height="336" viewBox="0 0 1008 336" xmlns="http://www.w3.org/2000/svg" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#4B5563"></path>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1008" height="336" fill="#FFFFFF"></rect>
+  <line class="edge" data-from="monorepo" data-to="web" data-rel="contains" x1="104" y1="72" x2="104" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="monorepo" data-to="mobile" data-rel="contains" x1="104" y1="72" x2="304" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="monorepo" data-to="core" data-rel="contains" x1="104" y1="72" x2="504" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="monorepo" data-to="authsvc" data-rel="contains" x1="104" y1="72" x2="704" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="monorepo" data-to="billsvc" data-rel="contains" x1="104" y1="72" x2="904" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="web" data-to="core" data-rel="imports" x1="184" y1="168" x2="424" y2="168" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="mobile" data-to="core" data-rel="imports" x1="384" y1="168" x2="424" y2="168" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="authsvc" data-to="core" data-rel="imports" x1="784" y1="168" x2="424" y2="168" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="billsvc" data-to="core" data-rel="imports" x1="984" y1="168" x2="424" y2="168" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="authsvc" data-to="db" data-rel="reads" x1="704" y1="192" x2="104" y2="264" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="billsvc" data-to="db" data-rel="reads" x1="904" y1="192" x2="104" y2="264" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="billsvc" data-to="email" data-rel="calls" x1="904" y1="192" x2="304" y2="264" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <g class="node" data-node-id="monorepo" data-label="Acme Platform" data-kind="system" data-path="" data-related-edges="monorepo web contains&#10;monorepo mobile contains&#10;monorepo core contains&#10;monorepo authsvc contains&#10;monorepo billsvc contains" data-dsl-excerpt="monorepo system &quot;Acme Platform&quot;&#10;monorepo web contains&#10;monorepo mobile contains&#10;monorepo core contains&#10;monorepo authsvc contains&#10;monorepo billsvc contains" data-x="24" data-y="24" transform="translate(24,24)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#1F2937" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Acme Platform</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">monorepo</text>
+  </g>
+  <g class="node" data-node-id="web" data-label="Web App" data-kind="package" data-path="apps/web" data-related-edges="monorepo web contains&#10;web core imports" data-dsl-excerpt="web package &quot;Web App&quot; apps/web&#10;monorepo web contains&#10;web core imports" data-x="24" data-y="144" transform="translate(24,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Web App</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">web</text>
+  </g>
+  <g class="node" data-node-id="mobile" data-label="Mobile App" data-kind="package" data-path="apps/mobile" data-related-edges="monorepo mobile contains&#10;mobile core imports" data-dsl-excerpt="mobile package &quot;Mobile App&quot; apps/mobile&#10;monorepo mobile contains&#10;mobile core imports" data-x="224" data-y="144" transform="translate(224,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Mobile App</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">mobile</text>
+  </g>
+  <g class="node" data-node-id="core" data-label="Shared Core" data-kind="package" data-path="packages/core" data-related-edges="monorepo core contains&#10;web core imports&#10;mobile core imports&#10;authsvc core imports&#10;billsvc core imports" data-dsl-excerpt="core package &quot;Shared Core&quot; packages/core&#10;monorepo core contains&#10;web core imports&#10;mobile core imports&#10;authsvc core imports&#10;billsvc core imports" data-x="424" data-y="144" transform="translate(424,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Shared Core</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">core</text>
+  </g>
+  <g class="node" data-node-id="authsvc" data-label="Auth Service" data-kind="package" data-path="services/auth" data-related-edges="monorepo authsvc contains&#10;authsvc core imports&#10;authsvc db reads" data-dsl-excerpt="authsvc package &quot;Auth Service&quot; services/auth&#10;monorepo authsvc contains&#10;authsvc core imports&#10;authsvc db reads" data-x="624" data-y="144" transform="translate(624,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Auth Service</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">authsvc</text>
+  </g>
+  <g class="node" data-node-id="billsvc" data-label="Billing Service" data-kind="package" data-path="services/billing" data-related-edges="monorepo billsvc contains&#10;billsvc core imports&#10;billsvc db reads&#10;billsvc email calls" data-dsl-excerpt="billsvc package &quot;Billing Service&quot; services/billing&#10;monorepo billsvc contains&#10;billsvc core imports&#10;billsvc db reads&#10;billsvc email calls" data-x="824" data-y="144" transform="translate(824,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Billing Service</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">billsvc</text>
+  </g>
+  <g class="node" data-node-id="db" data-label="Postgres" data-kind="datastore" data-path="" data-related-edges="authsvc db reads&#10;billsvc db reads" data-dsl-excerpt="db datastore Postgres&#10;authsvc db reads&#10;billsvc db reads" data-x="24" data-y="264" transform="translate(24,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#7C3AED" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Postgres</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">db</text>
+  </g>
+  <g class="node" data-node-id="email" data-label="Email Provider" data-kind="external" data-path="" data-related-edges="billsvc email calls" data-dsl-excerpt="email external &quot;Email Provider&quot;&#10;billsvc email calls" data-x="224" data-y="264" transform="translate(224,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#9CA3AF" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#111827" font-size="13">Email Provider</text>
+    <text x="80" y="38" text-anchor="middle" fill="#111827" font-size="10" opacity="0.8">email</text>
+  </g>
+  <rect class="focus-frame" data-focus-for="core" x="421" y="141" width="166" height="54" rx="10" fill="none" stroke="#F59E0B" stroke-width="3"></rect>
+</svg>
     <div class="legend">
       kind:
       <span class="sw" style="background:#1F2937"></span>system
@@ -163,10 +164,9 @@
       <span class="sw" style="background:#9CA3AF"></span>external
       <span class="sw" style="background:#7C3AED"></span>datastore
       ／ 実線=構造（contains/deploys/owns）, 破線=依存（imports/calls/reads）
+      <br>ヒント: ノードはドラッグで移動できます（接続線が追従。リロードで初期配置に戻ります）。
     </div>
   </div>
-
-  <!-- ===== 質問サイドパネル ===== -->
   <aside class="panel" id="panel">
     <h2>選択中のノード</h2>
     <div id="node-empty" class="empty">図のノードをクリックすると、ここに詳細が表示されます。</div>
@@ -204,10 +204,7 @@
     </div>
   </aside>
 </div>
-
-<!-- ブリッジ停止後の表示（タブを自動で閉じられないブラウザ向けの明示的な無効状態） -->
 <div id="stopped-overlay">ブリッジを停止しました。このタブは閉じてかまいません。</div>
-
 <script>
 (function () {
   "use strict";
@@ -223,21 +220,18 @@
     isBridge ? "mode: localhost bridge（Ask でローカル Claude Code に質問できます）"
              : "mode: copy フォールバック（ブリッジ未起動／file://。プロンプトをコピーして Claude Code に貼ってください）";
 
-  // 会話継続の状態表示（continuity はサーバ側でグローバルに管理。ノード切替では継続したまま）
   var sessionLine = document.getElementById("session-line");
   function setSessionLine(text) { sessionLine.textContent = text || ""; }
 
   var MSG_NOT_STARTED = "会話: まだ開始していません（質問すると同じ会話として継続します）";
   var MSG_CONTINUING = "会話: 継続中（次の質問も同じ文脈で続きます。別ノードでも継続）";
 
-  // bridge モードのみ「新しい会話」を出し、現在の会話状態を /api/health から拾って表示する
   if (isBridge) {
     document.getElementById("btn-reset").style.display = "";
     document.getElementById("model-controls").style.display = "flex";
     fetch("/api/health").then(function (r) { return r.json(); }).then(function (h) {
       populateSelect("sel-model", (h && h.availableModels) || [], h && h.defaultModel);
       populateSelect("sel-effort", (h && h.availableEfforts) || [], h && h.defaultEffort);
-      // remoteShutdown が明示的に false でなければ停止ボタンを出す（未対応な古いブリッジでも表示）
       if (!h || h.remoteShutdown !== false) {
         document.getElementById("btn-stop").style.display = "";
       }
@@ -252,7 +246,6 @@
     }).catch(function () { setSessionLine(MSG_NOT_STARTED); });
   }
 
-  // /api/health 由来の値で <select> を埋める（先頭の (default) オプションは残す）
   function populateSelect(id, values, def) {
     var sel = document.getElementById(id);
     if (!sel) return;
@@ -267,7 +260,7 @@
     }
   }
 
-  var selected = null; // 直近にクリックしたノードの dataset
+  var selected = null;
 
   function nodePayload() {
     if (!selected) return null;
@@ -281,7 +274,6 @@
     };
   }
 
-  // サーバ側 build_prompt と同じ体裁（コピー方式でも同じプロンプトが得られる）
   function buildPrompt(p, question) {
     function line(v) { v = (v || "").trim(); return v ? v : "(未指定)"; }
     function block(v) { v = (v || "").trim(); return v ? v : "(なし)"; }
@@ -310,35 +302,30 @@
   }
 
   // 自己完結 Markdown レンダラ（CDN/外部ライブラリ不使用・決定的・XSS 安全）。
-  // 方針: まず全体を HTML エスケープ → フェンス/インラインコードをプレースホルダ退避 →
-  // ブロック（見出し/hr/引用/リスト/表/段落）→ インライン（コード/リンク/強調）→ 復元。
   function renderMarkdown(src) {
     function esc(s) {
       return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
     var store = [];
-    function stash(html) { store.push(html); return "\u0000" + (store.length - 1) + "\u0000"; }
-    function isStash(s) { return /^\u0000\d+\u0000$/.test(s.trim()); }
+    var NUL = String.fromCharCode(0);
+    function stash(html) { store.push(html); return NUL + (store.length - 1) + NUL; }
+    function isStash(s) { s = s.trim(); return s.length > 1 && s.charCodeAt(0) === 0 && s.charCodeAt(s.length - 1) === 0; }
 
     var text = esc(src == null ? "" : String(src)).replace(/\r\n?/g, "\n");
 
-    // フェンスコードブロック（```lang … ``` / ~~~ … ~~~）を先に退避
-    text = text.replace(/(^|\n)(```|~~~)[^\n]*\n([\s\S]*?)\n\2(?=\n|$)/g, function (m, pre, fence, code) {
+    text = text.replace(/(^|\n)(\x60\x60\x60|~~~)[^\n]*\n([\s\S]*?)\n\2(?=\n|$)/g, function (m, pre, fence, code) {
       return pre + stash("<pre><code>" + code + "</code></pre>");
     });
 
     function inline(s) {
-      // インラインコード `…`（中身を他規則から保護）
-      s = s.replace(/`([^`]+)`/g, function (m, c) { return stash("<code>" + c + "</code>"); });
-      // リンク [text](url)（安全スキームのみ。危険スキームはテキストだけ残す）
+      s = s.replace(/\x60([^\x60]+)\x60/g, function (m, c) { return stash("<code>" + c + "</code>"); });
       s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (m, t, url) {
         if (/^(https?:|mailto:|#|\/)/i.test(url)) {
           return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + t + "</a>";
         }
         return t;
       });
-      // 太字 → 斜体 の順（** を先に食わせる）
       s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/__([^_]+)__/g, "<strong>$1</strong>");
       s = s.replace(/\*([^*\n]+)\*/g, "<em>$1</em>").replace(/(^|[^\w])_([^_\n]+)_(?=$|[^\w])/g, "$1<em>$2</em>");
       return s;
@@ -356,14 +343,13 @@
     while (i < lines.length) {
       var ln = lines[i];
       if (blank(ln)) { i++; continue; }
-      if (isStash(ln)) { out.push(ln.trim()); i++; continue; }       // 退避済みフェンス
+      if (isStash(ln)) { out.push(ln.trim()); i++; continue; }
 
       var h = /^(#{1,6})\s+(.*)$/.exec(ln);
       if (h) { var lv = h[1].length; out.push("<h" + lv + ">" + inline(h[2].trim()) + "</h" + lv + ">"); i++; continue; }
 
       if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(ln)) { out.push("<hr>"); i++; continue; }
 
-      // パイプ表（ヘッダ行＋区切り行）
       if (ln.indexOf("|") !== -1 && i + 1 < lines.length &&
           /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)+\|?\s*$/.test(lines[i + 1])) {
         var header = splitRow(ln);
@@ -378,14 +364,14 @@
         continue;
       }
 
-      if (/^\s*&gt;\s?/.test(ln)) {                                  // 引用（> はエスケープ済みで &gt;）
+      if (/^\s*&gt;\s?/.test(ln)) {
         var q = [];
         while (i < lines.length && /^\s*&gt;\s?/.test(lines[i])) { q.push(lines[i].replace(/^\s*&gt;\s?/, "")); i++; }
         out.push("<blockquote>" + inline(q.join(" ")) + "</blockquote>");
         continue;
       }
 
-      if (/^\s*[-*+]\s+/.test(ln) || /^\s*\d+\.\s+/.test(ln)) {      // リスト
+      if (/^\s*[-*+]\s+/.test(ln) || /^\s*\d+\.\s+/.test(ln)) {
         var ordered = /^\s*\d+\.\s+/.test(ln);
         var re = ordered ? /^\s*\d+\.\s+(.*)$/ : /^\s*[-*+]\s+(.*)$/;
         var items = [];
@@ -395,7 +381,6 @@
         continue;
       }
 
-      // 段落（空行/他ブロック開始まで）
       var para = [];
       while (i < lines.length && !blank(lines[i]) && !isStash(lines[i]) &&
              !/^(#{1,6})\s+/.test(lines[i]) && !/^(-{3,}|\*{3,}|_{3,})\s*$/.test(lines[i]) &&
@@ -406,7 +391,7 @@
     }
 
     var html = out.join("\n");
-    return html.replace(/\u0000(\d+)\u0000/g, function (m, n) { return store[+n]; });  // コード復元
+    return html.replace(new RegExp(NUL + "([0-9]+)" + NUL, "g"), function (m, n) { return store[+n]; });
   }
 
   function selectNode(g) {
@@ -423,7 +408,6 @@
     document.getElementById("f-path").textContent = selected.path || "(なし)";
     document.getElementById("f-edges").textContent = selected.relatedEdges || "(なし)";
     document.getElementById("f-excerpt").textContent = selected.dslExcerpt || "(なし)";
-    // 回答表示はリセット
     document.getElementById("answer").style.display = "none";
     document.getElementById("prompt-fallback").style.display = "none";
     document.getElementById("status").textContent = "";
@@ -455,14 +439,12 @@
     }
   }
 
-  // Ask 中は Ask と「新しい会話」を両方ロック（実行中の会話を途中でリセットさせない）
   function setBusy(busy) {
     document.getElementById("btn-ask").disabled = busy;
     var br = document.getElementById("btn-reset");
     if (br) br.disabled = busy;
     var sm = document.getElementById("sel-model"); if (sm) sm.disabled = busy;
     var se = document.getElementById("sel-effort"); if (se) se.disabled = busy;
-    // 送信中だけスピナーを表示（CSS アニメーション。本物のストリーミングはしない）
     document.getElementById("loading").classList.toggle("on", busy);
   }
 
@@ -487,7 +469,6 @@
       });
   }
 
-  // ブリッジを停止する。成功時も接続が切れた時も「停止した」とみなしてオーバーレイを出す。
   function doStop() {
     if (!isBridge) return;
     document.getElementById("btn-stop").disabled = true;
@@ -495,11 +476,9 @@
     fetch("/api/shutdown", { method: "POST" }).then(showStopped, showStopped);
   }
 
-  // 停止後の表示。タブのクローズはベストエフォート（多くのブラウザは window.close() を無視するため
-  // オーバーレイで「閉じてよい」ことを明示する）。
   function showStopped() {
     document.getElementById("stopped-overlay").classList.add("on");
-    try { window.close(); } catch (e) { /* スクリプトが開いていないタブは閉じられない */ }
+    try { window.close(); } catch (e) {}
   }
 
   function doAsk() {
@@ -509,14 +488,12 @@
     if (!question) { document.getElementById("status").textContent = "質問を入力してください。"; return; }
 
     if (!isBridge) {
-      // ブリッジ無し → コピー方式に誘導
       var prompt = buildPrompt(p, question);
       showFallbackPrompt(prompt, "ブリッジが未起動です。下のプロンプトをコピーして Claude Code に貼ってください。");
       return;
     }
 
     var body = Object.assign({ question: question }, p);
-    // model / effort は非空のときだけ送る（「(default)」はフラグ省略）
     var selModel = document.getElementById("sel-model");
     var selEffort = document.getElementById("sel-effort");
     if (selModel && selModel.value) body.model = selModel.value;
@@ -534,7 +511,6 @@
         setBusy(false);
         var ans = document.getElementById("answer");
         if (res.json && res.json.ok) {
-          // 回答は Markdown。自己完結レンダラで HTML 描画（エラーは下で textContent のまま）
           ans.innerHTML = renderMarkdown(res.json.answer || "(空の回答)");
           ans.style.display = "block";
           document.getElementById("status").textContent = "回答が返りました。";
@@ -553,15 +529,98 @@
       });
   }
 
-  // 配線
-  var nodes = document.querySelectorAll(".node");
-  for (var i = 0; i < nodes.length; i++) {
-    (function (g) { g.addEventListener("click", function () { selectNode(g); }); })(nodes[i]);
-  }
+  // --- 配線（ボタン） ---
   document.getElementById("btn-ask").addEventListener("click", doAsk);
   document.getElementById("btn-copy").addEventListener("click", doCopy);
   document.getElementById("btn-reset").addEventListener("click", doReset);
   document.getElementById("btn-stop").addEventListener("click", doStop);
+
+  // --- ノード: クリックで選択、ドラッグで移動（view-time のみ・初期レイアウトは不変） ---
+  var svg = document.querySelector("svg.diagram");
+  var nodeEls = svg ? svg.querySelectorAll(".node") : [];
+  var edgeEls = svg ? svg.querySelectorAll("line.edge") : [];
+  var focusFrame = svg ? svg.querySelector(".focus-frame") : null;
+  var NODE_W = 160, NODE_H = 48; // layout-algorithm.md §4（固定）
+  var DRAG_THRESHOLD = 3;
+
+  var pos = {};
+  for (var k = 0; k < nodeEls.length; k++) {
+    var gx = nodeEls[k];
+    pos[gx.getAttribute("data-node-id")] = { x: +gx.getAttribute("data-x"), y: +gx.getAttribute("data-y") };
+  }
+
+  function clientToSvg(ev) {
+    if (!svg || !svg.getScreenCTM) return { x: ev.clientX, y: ev.clientY };
+    var ctm = svg.getScreenCTM();
+    if (!ctm) return { x: ev.clientX, y: ev.clientY };
+    var inv = ctm.inverse();
+    return {
+      x: ev.clientX * inv.a + ev.clientY * inv.c + inv.e,
+      y: ev.clientX * inv.b + ev.clientY * inv.d + inv.f
+    };
+  }
+
+  function edgeEndpoints(fromId, toId) {
+    var bf = pos[fromId], bt = pos[toId];
+    if (!bf || !bt) return null;
+    if (bt.y > bf.y) {
+      return { x1: bf.x + NODE_W / 2, y1: bf.y + NODE_H, x2: bt.x + NODE_W / 2, y2: bt.y };
+    }
+    return { x1: bf.x + NODE_W, y1: bf.y + NODE_H / 2, x2: bt.x, y2: bt.y + NODE_H / 2 };
+  }
+
+  function redrawEdges(nodeId) {
+    for (var e = 0; e < edgeEls.length; e++) {
+      var ln = edgeEls[e];
+      var f = ln.getAttribute("data-from"), t = ln.getAttribute("data-to");
+      if (f !== nodeId && t !== nodeId) continue;
+      var ep = edgeEndpoints(f, t);
+      if (!ep) continue;
+      ln.setAttribute("x1", ep.x1); ln.setAttribute("y1", ep.y1);
+      ln.setAttribute("x2", ep.x2); ln.setAttribute("y2", ep.y2);
+    }
+    if (focusFrame && focusFrame.getAttribute("data-focus-for") === nodeId && pos[nodeId]) {
+      focusFrame.setAttribute("x", pos[nodeId].x - 3);
+      focusFrame.setAttribute("y", pos[nodeId].y - 3);
+    }
+  }
+
+  function wireNode(g) {
+    var id = g.getAttribute("data-node-id");
+    var dragging = false, moved = false, startX = 0, startY = 0, origX = 0, origY = 0;
+
+    g.addEventListener("pointerdown", function (ev) {
+      dragging = true; moved = false;
+      var p = clientToSvg(ev);
+      startX = p.x; startY = p.y;
+      origX = pos[id].x; origY = pos[id].y;
+      g.classList.add("dragging");
+      try { g.setPointerCapture(ev.pointerId); } catch (e) {}
+      ev.preventDefault();
+    });
+    g.addEventListener("pointermove", function (ev) {
+      if (!dragging) return;
+      var p = clientToSvg(ev);
+      var dx = p.x - startX, dy = p.y - startY;
+      if (!moved && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) moved = true;
+      if (!moved) return;
+      var nx = Math.round(origX + dx), ny = Math.round(origY + dy);
+      pos[id].x = nx; pos[id].y = ny;
+      g.setAttribute("transform", "translate(" + nx + "," + ny + ")");
+      redrawEdges(id);
+    });
+    function endDrag(ev) {
+      if (!dragging) return;
+      dragging = false;
+      g.classList.remove("dragging");
+      try { g.releasePointerCapture(ev.pointerId); } catch (e) {}
+      if (!moved) selectNode(g); // 動いていなければクリック＝選択
+    }
+    g.addEventListener("pointerup", endDrag);
+    g.addEventListener("pointercancel", endDrag);
+  }
+
+  for (var n = 0; n < nodeEls.length; n++) wireNode(nodeEls[n]);
 })();
 </script>
 </body>

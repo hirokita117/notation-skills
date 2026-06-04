@@ -26,6 +26,7 @@ path: <path>
 related edges:
 <relatedEdges>
 
+repo-map DSL file: <dslFile>
 DSL excerpt:
 <dslExcerpt>
 
@@ -34,6 +35,8 @@ DSL excerpt:
 
 回答方針:
 - まず repo-map DSL 上の意味を説明してください。
+- repo-map DSL file が指定されているときは、まずそのファイルを Read して excerpt と整合を確認してください。
+- DSL ファイルパスが未指定のときは excerpt を正としてください。
 - 必要なら Read / Glob / Grep で実ファイルを確認してください。
 - 推測と確認済み事実を分けてください。
 - ファイル編集、生成、削除はしないでください。
@@ -41,7 +44,12 @@ DSL excerpt:
 - 回答は日本語を基本にしてください。
 ```
 
-HTML 側 `buildPrompt`（copy 方式）も同じ体裁を作るので、どちらの方式でも同じ内容になる。
+`repo-map DSL file:` は repo-map DSL 正本ファイルの**絶対パス**。ブリッジ方式では **サーバが
+起動時 `--dsl`（`BridgeConfig.dsl`・realpath 済みの絶対パス）から注入**する（client からは受け取らない）。
+`--dsl` 省略時は `(未指定)`。絶対パスにするのは、Claude の cwd（=repo_root）に依存せず確実に解決できるため。
+
+HTML 側 `buildPrompt`（copy 方式）も同じ体裁を作るので、どちらの方式でも同じ内容になる。copy 方式では
+`<html data-repo-map-dsl>` に埋め込まれた絶対パス（`notation-render` が生成時に付与）を使う（[html-viewer-contract.md](html-viewer-contract.md) §1）。
 
 ---
 

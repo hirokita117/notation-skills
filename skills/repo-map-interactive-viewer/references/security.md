@@ -17,6 +17,10 @@
 - **HTML から渡せるのは固定 JSON フィールド**（question / nodeId / label / kind / path /
   relatedEdges / dslExcerpt）**＋ サーバ許可リストで縛った 2 つの列挙フィールド `model` / `effort`** のみ。
   ツール名・任意の CLI フラグ・コマンド文字列は **一切渡せない**。
+- **DSL 正本パスは client から受け取らない。** プロンプトの `repo-map DSL file:` 行は、ブリッジが
+  起動時 `--dsl`（§3 のとおり realpath で repo-root にジェイル済みの**絶対パス**）を**サーバ側で注入**する。
+  client が送る `dslFile`/`dslPath` 等の未知キーは無視され、**リクエスト JSON にフィールドは増えない**。
+  プロンプトに絶対パスが載るが、本ツールはローカル専用（外部に出さない）なので許容する。
 - **`model` / `effort` は値であってフラグではない。** client は `"opus"` / `"high"` のような *値* を送り、
   ブリッジがサーバ定義の許可リスト（`--models` 由来の `allowed_models`、CLI 固定の `low/medium/high/xhigh/max`）と
   **完全一致**で照合する。許可外は `400` で拒否し subprocess を起動しない。許可された値だけが

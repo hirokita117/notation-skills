@@ -1,0 +1,131 @@
+{
+  "version": "repo-map v1",
+  "meta": {
+    "root": ".",
+    "depth": 1,
+    "focus": "core",
+    "generated": "2026-06-03T09:00:00Z"
+  },
+  "nodes": [
+    {
+      "id": "monorepo",
+      "kind": "system",
+      "label": "Acme Platform"
+    },
+    {
+      "id": "web",
+      "kind": "package",
+      "label": "Web App",
+      "path": "apps/web"
+    },
+    {
+      "id": "mobile",
+      "kind": "package",
+      "label": "Mobile App",
+      "path": "apps/mobile"
+    },
+    {
+      "id": "core",
+      "kind": "package",
+      "label": "Shared Core",
+      "path": "packages/core"
+    },
+    {
+      "id": "authsvc",
+      "kind": "package",
+      "label": "Auth Service",
+      "path": "services/auth"
+    },
+    {
+      "id": "billsvc",
+      "kind": "package",
+      "label": "Billing Service",
+      "path": "services/billing"
+    },
+    {
+      "id": "db",
+      "kind": "datastore",
+      "label": "Postgres"
+    },
+    {
+      "id": "email",
+      "kind": "external",
+      "label": "Email Provider"
+    }
+  ],
+  "edges": [
+    {
+      "index": 0,
+      "from": "monorepo",
+      "to": "web",
+      "relation": "contains"
+    },
+    {
+      "index": 1,
+      "from": "monorepo",
+      "to": "mobile",
+      "relation": "contains"
+    },
+    {
+      "index": 2,
+      "from": "monorepo",
+      "to": "core",
+      "relation": "contains"
+    },
+    {
+      "index": 3,
+      "from": "monorepo",
+      "to": "authsvc",
+      "relation": "contains"
+    },
+    {
+      "index": 4,
+      "from": "monorepo",
+      "to": "billsvc",
+      "relation": "contains"
+    },
+    {
+      "index": 5,
+      "from": "web",
+      "to": "core",
+      "relation": "imports"
+    },
+    {
+      "index": 6,
+      "from": "mobile",
+      "to": "core",
+      "relation": "imports"
+    },
+    {
+      "index": 7,
+      "from": "authsvc",
+      "to": "core",
+      "relation": "imports"
+    },
+    {
+      "index": 8,
+      "from": "billsvc",
+      "to": "core",
+      "relation": "imports"
+    },
+    {
+      "index": 9,
+      "from": "authsvc",
+      "to": "db",
+      "relation": "reads"
+    },
+    {
+      "index": 10,
+      "from": "billsvc",
+      "to": "db",
+      "relation": "reads"
+    },
+    {
+      "index": 11,
+      "from": "billsvc",
+      "to": "email",
+      "relation": "calls"
+    }
+  ],
+  "layout": []
+}
