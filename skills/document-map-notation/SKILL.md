@@ -67,6 +67,12 @@ DSL を書き始める前に、次を**ユーザーと合意**（自明なら明
 - **source**: どのドキュメント／どの範囲か（全文か、特定セクションか）。
 - **depth**: どの粒度まで（0 / 1 / 2）。「まず depth 1 で」のような指定があればそれに従う。
 - **読者と成功条件**: 誰のための地図か、**「何が分かれば成功か」**（例: 「決定事項と未決事項、誰が担当かが一目で分かる」）。
+- **設計意図（描画の観点）**: 次の 4 軸を確認する。これが STEP 3 のビュー選択を左右する。
+  - (a) **見たい描画・観点**（どのビューで見せたいか：論点マップ／担当マップ／リスク対応 …）。
+  - (b) **避けたい描画・観点**（例: ただの目次で終わらせたくない／個別要件は省きたい／全文要約は不要）。
+  - (c) **強調したい関係**（`decides` / `depends-on` / `raises`・`mitigates` / `owns` / `conflicts-with` …）。
+  - (d) **出力用途・読者**（PM・意思決定 / 設計レビュー / オンボーディング / 監査）。
+- **曖昧なら問う**: 4 軸が曖昧で **AskUserQuestion ツールが使える**なら、曖昧な軸だけを問う（黙って既定に寄せない）。明示済み／自明なら問わずに進め、**採用した前提を 1 文で明示**する。軸とビューの対応・質問テンプレ・問う/進める RULE は [references/view-patterns.md](references/view-patterns.md)。
 
 ### STEP 1 — 読解と抽出
 
@@ -86,9 +92,14 @@ DSL を書き始める前に、次を**ユーザーと合意**（自明なら明
 - **上限の目安**: ノード ≤ 40、エッジ ≤ 80。超えそうなら、近い項目をまとめる／depth を下げる／対象セクションに絞る。
 - **縦の構成は `contains` で作る**（document → section → concept …）。論点・担当・リスクなどは破線の横断辺（owns/raises/decides/mitigates/depends-on/references/conflicts-with）でつなぐ。
 
-### STEP 3 — depth とスコープの確定
+### STEP 3 — ビュー選択（View Selection）と depth/スコープ確定
 
-STEP 0/2 を踏まえ、`@meta depth` を確定する。depth と各ノードの粒度が整合するよう調整（例: depth 0 に requirement / decision を混ぜない）。深掘り要求なら対象セクションへ `source` と範囲を絞る。
+抽象化したノード・エッジを DSL にする前に、**どの「ビュー」で見せるかを 1 つ決める**。同じ閉じた文法でも、選ぶ `kind`/`relation`・`focus`・`@layout` の使い方で地図は別物になる。ここを飛ばすと、毎回「`document → section → concept` のただの目次」に無意識に落ち、STEP 0 で決めた「何が分かれば成功か」に答えない地図になる。
+
+- **ビューを 1 つ選ぶ**（または、明示的に理由を述べた上でのハイブリッド）。STEP 0 の成功条件と 4 軸（見たい／避けたい観点・強調する関係・出力用途）から**逆引き**する。カタログは [references/view-patterns.md](references/view-patterns.md)。
+- **「Document Outline（ただの目次）」への無意識な既定化を避ける**。それは 8 つのビューの 1 つにすぎない。`decides`/`owns`/`raises`/`conflicts-with` 等を主役にするビューを意図的に検討する。
+- **選んだビューに合わせて選択を写す**: そのビューの「ノード選択／エッジ選択」に従い、使う `kind` と `relation` の部分集合を絞る。`focus` の当て先も合わせる。**`contains` 以外はランクに効かないので、目次順以外の並び（決定ステータス／リスク深刻度／担当レーン）は必ず `@layout`（`rank=`/`group=`）で作る**。
+- その上で `@meta depth` を確定する。depth と各ノードの粒度が整合するよう調整（例: depth 0 に requirement / decision を混ぜない）。深掘り要求なら対象セクションへ `source` と範囲を絞る。
 
 ### STEP 4 — DSL 出力
 
@@ -111,6 +122,7 @@ STEP 0/2 を踏まえ、`@meta depth` を確定する。depth と各ノードの
 - [ ] `@layout` には `rank=` / `group=` 以外（意味情報）を入れていない。
 - [ ] depth と各ノードの粒度が整合（例: depth 0 に requirement / decision を混ぜない）。
 - [ ] **図にしたい情報が DSL に明示されている**（renderer が元ドキュメントを再読込しなくても描ける）。全文要約になっていない・網羅で膨らんでいない。
+- [ ] [view-patterns.md](references/view-patterns.md) のビューを 1 つ（または根拠ありのハイブリッド）選び、ノード／エッジ選択がそのビューに沿っている。**Document Outline（ただの目次）へ無意識に既定化していない。**
 
 ## reference 地図
 
@@ -118,6 +130,7 @@ STEP 0/2 を踏まえ、`@meta depth` を確定する。depth と各ノードの
 |----------|------|----------|
 | [references/grammar.md](references/grammar.md) | `document-map v1` の正式文法・内部モデル・検証コード（**正本**） | DSL を書く・検証する全ての場面 |
 | [references/scope-and-depth.md](references/scope-and-depth.md) | depth 0/1/2 の選び方、ドキュメント類型別ガイド（PRD・仕様書・議事録・README・設計書） | STEP 0 で粒度・範囲に迷ったとき |
+| [references/view-patterns.md](references/view-patterns.md) | 固定文法のまま「見せ方」を変える 8 つのビューパターン＋設計意図 4 軸の AskUserQuestion テンプレ | STEP 0 で観点を確認し、STEP 3 でどのビューにするか選ぶとき |
 | [references/examples.md](references/examples.md) | ドキュメント → 出力 DSL 全文（depth 別の例） | 出力の形を確認したいとき |
 
 ## 関連スキル
