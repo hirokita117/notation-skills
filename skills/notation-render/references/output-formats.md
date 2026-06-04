@@ -47,7 +47,7 @@ HTML 自体が**決定的な正典**であり、内部のインライン SVG は
 [html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md) の
 「ドキュメントの DSL 正本パス」を参照。
 
-HTML Viewer は閲覧時に**ノードのドラッグ移動**にも対応してよい（掴んで動かすと接続線とラベル・ID が追従する）。図エリアは質問パネルの上に置き、`resize` 可能なスクロール領域として広げられるようにする。これは view-time の表示操作のみで、`data-*` の導出にも出力ファイルの決定性にも影響しない（リロードで初期レイアウトに戻る）。属性スキーマは [html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md) の「ドラッグ用属性」を参照。
+HTML Viewer は閲覧時に**ノードのドラッグ移動**にも対応してよい（掴んで動かすと接続線とラベル・ID が追従する）。図エリアは質問パネルの上に置き、SVG 本体を含む `resize` 可能なスクロール領域として広げられるようにする。凡例はこのスクロール領域の外側に置き、図エリアを縦方向に広げても SVG の描画可能範囲を狭めない。閲覧時は表示領域に合わせて、SVG の `width` / `height` / `viewBox` と背景 rect を初期キャンバス以上へ広げてよい。ノードのドラッグ移動は現在の SVG キャンバス内に制限し、ドラッグ操作だけでキャンバスを広げない。これは view-time の表示操作のみで、`data-*` の導出にも出力ファイルの決定性にも影響しない（リロードで初期レイアウトに戻る）。属性スキーマは [html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md) の「ドラッグ用属性」を参照。
 
 **責務の外**: Claude Code CLI 呼び出し・Python ブリッジ本体・起動手順は **この Skill の責務ではない**。
 それらは [`repo-map-interactive-viewer`](../../repo-map-interactive-viewer/SKILL.md) が担当する。

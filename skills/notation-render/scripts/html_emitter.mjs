@@ -45,8 +45,10 @@ export function emitHtml(repoMap, layout, options = {}) {
     "<body>",
     HEADER,
     '<div class="layout">',
-    '  <section class="diagram-pane" aria-label="repo-map diagram">',
+    '  <section class="diagram-section" aria-label="repo-map diagram">',
+    '    <div class="diagram-pane">',
     svg.replace(/\n+$/, ""), // SVG を逐語埋め込み（ノードブロックを単体 SVG とバイト一致させる）
+    "    </div>",
     LEGEND,
     "  </section>",
     PANEL,
@@ -75,6 +77,7 @@ const STYLE = `  :root {
   header h1 { font-size: 15px; margin: 0; }
   header .mode { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .layout { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+  .diagram-section { width: 100%; min-width: 0; }
   .diagram-pane { width: 100%; height: min(72vh, 720px); min-height: 360px; min-width: 300px;
     resize: both; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff; padding: 8px; }
   .diagram { display: block; background: #fff; }
@@ -529,11 +532,78 @@ const SCRIPT = String.raw`(function () {
 
   // --- ノード: クリックで選択、ドラッグで移動（view-time のみ・初期レイアウトは不変） ---
   var svg = document.querySelector("svg.diagram");
+  var diagramPane = document.querySelector(".diagram-pane");
   var nodeEls = svg ? svg.querySelectorAll(".node") : [];
   var edgeEls = svg ? svg.querySelectorAll("line.edge") : [];
   var focusFrame = svg ? svg.querySelector(".focus-frame") : null;
   var NODE_W = 160, NODE_H = 48; // layout-algorithm.md §4（固定）
   var DRAG_THRESHOLD = 3;
+
+  function initialCanvasSize() {
+    if (!svg) return { w: 0, h: 0 };
+    var vb = (svg.getAttribute("viewBox") || "").split(/\s+/).map(Number);
+    if (vb.length === 4 && isFinite(vb[2]) && isFinite(vb[3])) return { w: vb[2], h: vb[3] };
+    return { w: +(svg.getAttribute("width") || 0), h: +(svg.getAttribute("height") || 0) };
+  }
+
+  function findBackgroundRect() {
+    if (!svg) return null;
+    for (var i = 0; i < svg.children.length; i++) {
+      var el = svg.children[i];
+      if (el.tagName && el.tagName.toLowerCase() === "rect" &&
+          el.getAttribute("x") === "0" && el.getAttribute("y") === "0") {
+        return el;
+      }
+    }
+    return null;
+  }
+
+  var initialCanvas = initialCanvasSize();
+  var canvas = { w: initialCanvas.w, h: initialCanvas.h };
+  var backgroundRect = findBackgroundRect();
+
+  function cssPx(value) {
+    var n = parseFloat(value);
+    return isFinite(n) ? n : 0;
+  }
+
+  function paneContentSize() {
+    if (!diagramPane) return { w: 0, h: 0 };
+    var cs = window.getComputedStyle ? window.getComputedStyle(diagramPane) : null;
+    var padX = cs ? cssPx(cs.paddingLeft) + cssPx(cs.paddingRight) : 0;
+    var padY = cs ? cssPx(cs.paddingTop) + cssPx(cs.paddingBottom) : 0;
+    return {
+      w: Math.max(0, diagramPane.clientWidth - padX),
+      h: Math.max(0, diagramPane.clientHeight - padY)
+    };
+  }
+
+  function syncCanvasToPane() {
+    if (!svg) return;
+    var pane = paneContentSize();
+    var nextW = Math.max(initialCanvas.w, canvas.w, Math.ceil(pane.w));
+    var nextH = Math.max(initialCanvas.h, canvas.h, Math.ceil(pane.h));
+    if (nextW === canvas.w && nextH === canvas.h) return;
+    canvas.w = nextW; canvas.h = nextH;
+    svg.setAttribute("width", String(canvas.w));
+    svg.setAttribute("height", String(canvas.h));
+    svg.setAttribute("viewBox", "0 0 " + canvas.w + " " + canvas.h);
+    if (backgroundRect) {
+      backgroundRect.setAttribute("width", String(canvas.w));
+      backgroundRect.setAttribute("height", String(canvas.h));
+    }
+  }
+
+  function clamp(v, min, max) {
+    return Math.min(Math.max(v, min), max);
+  }
+
+  function clampNodePosition(x, y) {
+    return {
+      x: clamp(x, 0, Math.max(0, canvas.w - NODE_W)),
+      y: clamp(y, 0, Math.max(0, canvas.h - NODE_H))
+    };
+  }
 
   var pos = {};
   for (var k = 0; k < nodeEls.length; k++) {
@@ -596,7 +666,9 @@ const SCRIPT = String.raw`(function () {
       var dx = p.x - startX, dy = p.y - startY;
       if (!moved && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) moved = true;
       if (!moved) return;
-      var nx = Math.round(origX + dx), ny = Math.round(origY + dy);
+      syncCanvasToPane();
+      var next = clampNodePosition(Math.round(origX + dx), Math.round(origY + dy));
+      var nx = next.x, ny = next.y;
       pos[id].x = nx; pos[id].y = ny;
       g.setAttribute("transform", "translate(" + nx + "," + ny + ")");
       redrawEdges(id);
@@ -613,4 +685,10 @@ const SCRIPT = String.raw`(function () {
   }
 
   for (var n = 0; n < nodeEls.length; n++) wireNode(nodeEls[n]);
+  syncCanvasToPane();
+  if (diagramPane && typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(function () { syncCanvasToPane(); }).observe(diagramPane);
+  } else {
+    window.addEventListener("resize", function () { syncCanvasToPane(); });
+  }
 })();`;

@@ -39,11 +39,31 @@ test("contract: fixed DOM ids, legend, buildPrompt, renderMarkdown, mode switch"
 
 test("layout: diagram pane stacks above the full-width panel and is resizable", () => {
   const h = htmlOf("example-a.dsl");
-  assert.ok(h.includes('<section class="diagram-pane" aria-label="repo-map diagram">'));
-  assert.ok(h.indexOf('<section class="diagram-pane"') < h.indexOf('<aside class="panel" id="panel">'));
+  assert.ok(h.includes('<section class="diagram-section" aria-label="repo-map diagram">'));
+  assert.ok(h.includes('    <div class="diagram-pane">'));
+  assert.ok(h.indexOf('<section class="diagram-section"') < h.indexOf('<aside class="panel" id="panel">'));
+  assert.ok(h.indexOf('<svg class="diagram"') < h.indexOf('<div class="legend">'));
+  assert.ok(h.indexOf('<div class="legend">') < h.indexOf('<aside class="panel" id="panel">'));
   assert.ok(h.includes(".layout { display: flex; flex-direction: column;"));
+  assert.ok(h.includes(".diagram-section { width: 100%; min-width: 0; }"));
   assert.ok(h.includes("resize: both; overflow: auto;"));
   assert.ok(h.includes(".panel { width: 100%; min-width: 0;"));
+});
+
+test("diagram canvas grows with pane resize and clamps dragged nodes inside it", () => {
+  const h = htmlOf("example-a.dsl");
+  assert.ok(h.includes('var diagramPane = document.querySelector(".diagram-pane");'));
+  assert.ok(h.includes("function syncCanvasToPane()"));
+  assert.ok(h.includes('svg.setAttribute("viewBox", "0 0 " + canvas.w + " " + canvas.h);'));
+  assert.ok(h.includes('backgroundRect.setAttribute("width", String(canvas.w));'));
+  assert.ok(h.includes('backgroundRect.setAttribute("height", String(canvas.h));'));
+  assert.ok(h.includes("function clampNodePosition(x, y)"));
+  assert.ok(h.includes("x: clamp(x, 0, Math.max(0, canvas.w - NODE_W))"));
+  assert.ok(h.includes("y: clamp(y, 0, Math.max(0, canvas.h - NODE_H))"));
+  assert.ok(h.includes("var next = clampNodePosition(Math.round(origX + dx), Math.round(origY + dy));"));
+  assert.ok(!h.includes("syncCanvasToPane({ right: nx + NODE_W, bottom: ny + NODE_H });"));
+  assert.ok(h.includes('typeof ResizeObserver !== "undefined"'));
+  assert.ok(h.includes('window.addEventListener("resize", function () { syncCanvasToPane(); });'));
 });
 
 test("drag additions: edges carry data-from/to/rel + class=edge; nodes carry data-x/y; drag JS present", () => {
