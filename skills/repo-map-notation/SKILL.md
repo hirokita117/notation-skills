@@ -70,11 +70,20 @@ DSL を書き始める前に、次を**ユーザーと合意**する。ここを
 - **上限の目安**: ノード ≤ 40、エッジ ≤ 80。超えそうなら、近いノードを 1 つにまとめる（グルーピング）か、深度を下げる。
 - external（外部サービス・SaaS）と datastore（DB・キャッシュ・キュー）は、境界として明示的にノード化する。
 
-### STEP 3 — DSL 出力
+### STEP 3 — ビュー選択（View Selection）
 
-完全な `repo-map v1` テキストを出力する。文法は [references/grammar.md](references/grammar.md)。出力前に**自己バリデーション**（下記）を必ず通す。
+抽象化したノード・エッジを DSL にする前に、**どの「ビュー」で見せるかを 1 つ決める**。同じ閉じた文法でも、選ぶ `kind`/`relation`・`focus`・`@layout` の使い方で地図は別物になる。ここを飛ばすと、毎回「階層（`contains`）＋ import 依存（`imports`）」の同じ形に無意識に落ち、STEP 0 で決めた「何が分かれば成功か」に答えない地図になる。
 
-### STEP 4 — 差分更新
+- **パターンを 1 つ選ぶ**（または、明示的に理由を述べた上でのハイブリッド）。カタログは [references/view-patterns.md](references/view-patterns.md)。STEP 0 の成功条件から**逆引き**する（例: 「どのサービスが DB を読むか」→ Data Ownership View）。
+- **選んだパターンに合わせて選択を写す**: そのパターンの「ノード選択／エッジ選択」に従い、使う `kind` と `relation` の部分集合を絞る。`focus` の当て先と `@layout`（`rank=`/`group=`）の使い方も、そのパターンの戦略に合わせる。
+- **「階層＋ import」への無意識な既定化を避ける**。それは Monorepo Workspace View という 1 つの選択肢にすぎない。`owns`/`deploys`/`reads`/`calls` を主役にするビューを意図的に検討する。
+- ハイブリッドにする場合は「なぜ 2 つのビューを混ぜるか」を 1 文で根拠づけてから進む。
+
+### STEP 4 — DSL 出力
+
+選んだビューに沿って、完全な `repo-map v1` テキストを出力する。文法は [references/grammar.md](references/grammar.md)。出力前に**自己バリデーション**（下記）を必ず通す。
+
+### STEP 5 — 差分更新
 
 「この部分だけ深掘りして」と言われたら、**全体を作り直さない**。`@meta root` を対象に下げ、`depth` を上げ、その**部分スコープだけの新しい DSL**を全量で出す（原則「全量置換・範囲を絞る」）。
 
@@ -90,6 +99,7 @@ DSL を書き始める前に、次を**ユーザーと合意**する。ここを
 - [ ] ノード ≤ 40、エッジ ≤ 80、有意行 ≤ 200。
 - [ ] `@layout` には `rank=` / `group=` 以外（意味情報）を入れていない。
 - [ ] depth と各ノードの粒度が整合（例: depth 0 に module/file-group を混ぜない）。
+- [ ] [view-patterns.md](references/view-patterns.md) のビューを 1 つ（または根拠ありのハイブリッド）選び、ノード／エッジ選択がそのビューに沿っている。「階層＋ import」へ無意識に既定化していない。
 
 ## reference 地図
 
@@ -97,7 +107,8 @@ DSL を書き始める前に、次を**ユーザーと合意**する。ここを
 |----------|------|----------|
 | [references/grammar.md](references/grammar.md) | `repo-map v1` の正式文法・内部モデル・検証コード（**正本**） | DSL を書く・検証する全ての場面 |
 | [references/scope-and-depth.md](references/scope-and-depth.md) | depth 0/1/2 の選び方、リポジトリ類型別ガイド | STEP 0 で粒度に迷ったとき |
-| [references/examples.md](references/examples.md) | 架空リポジトリの入力 → 出力 DSL 全文（2 例） | 出力の形を確認したいとき |
+| [references/view-patterns.md](references/view-patterns.md) | 固定文法のまま「見せ方」を変える 8 つのビューパターン（intent / 適する場面 / ノード・エッジ選択 / focus・レイアウト戦略 / 避けること） | STEP 3 でどのビューにするか選ぶとき |
+| [references/examples.md](references/examples.md) | 架空リポジトリの入力 → 出力 DSL 全文（4 例・各ビュー別） | 出力の形を確認したいとき |
 
 ## 関連スキル
 
