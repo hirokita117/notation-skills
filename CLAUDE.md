@@ -6,11 +6,11 @@
 
 巨大リポジトリを、固定ルールの DSL **`repo-map v1`** を**正本（source of truth）**にして地図化する
 Claude Code 用の **Agent Skills 集（plugin）**です。図そのものではなく「意味層（DSL）」を唯一の正本とし、
-SVG / HTML はそこからの決定的な派生物として扱います。
+HTML はそこからの決定的な派生物として扱います。
 
 - `skills/notation-core/` … 記法中心設計（Notation-first / MNP）の共通土台・用語・原則。
 - `skills/repo-map-notation/` … リポジトリ → `repo-map v1` DSL（**DSL 生成のみ**。図は描かない）。
-- `skills/notation-render/` … DSL → SVG / HTML / Mermaid（**決定的レンダリング**。入力は DSL テキストのみ）。
+- `skills/notation-render/` … DSL → HTML / Mermaid（**決定的レンダリング**。入力は DSL テキストのみ）。
 - `skills/repo-map-interactive-viewer/` … 生成済み HTML をローカル Claude Code とつなぐ対話ビューア。
 - `gallery/` … `repo-map v1` の代表例を見比べる静的 DSL カタログ（`build-gallery.mjs` の生成物）。
 
@@ -29,8 +29,8 @@ SVG / HTML はそこからの決定的な派生物として扱います。
 レンダラー・テストは外部依存ゼロ（Node.js 18+ 標準ライブラリのみ。`npm install` 不要）。
 
 ```sh
-# DSL を描画（既定は SVG。html / json / mermaid も可）
-node skills/notation-render/scripts/render_repo_map.mjs <input.dsl> --format svg > out.svg
+# DSL を描画（既定は HTML。json / mermaid も可）
+node skills/notation-render/scripts/render_repo_map.mjs <input.dsl> --format html > out.html
 
 # テスト（node 標準の node:test。リポジトリルートから）
 node --test skills/notation-render/tests/
@@ -69,7 +69,7 @@ node skills/notation-render/scripts/build-gallery.mjs
 1. `skills/notation-render/examples/` に `*.dsl` を置く
    （任意で先頭に `# story: 表示名` / `# desc: 一行説明` コメントを付ける）。
 2. `node skills/notation-render/scripts/build-gallery.mjs` を実行する。
-3. `gallery/index.html` と各プレビュー（`<id>.svg` / `<id>.html`）が**再生成**される。
+3. `gallery/index.html` と各プレビュー（`<id>.html`）が**再生成**される。
 4. 生成された `gallery/` 配下と、新しい `.dsl` を**両方コミット**する
    （`gallery/` はコミット済みスナップショットで、テストがバイト一致を検証する）。
 

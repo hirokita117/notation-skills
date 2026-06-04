@@ -12,7 +12,7 @@ description: >
   「構造をテキストで持ちたい」「どのパッケージが何に依存しているか地図にして」
   「オンボーディング用の構造図を」「認知負荷を下げる地図がほしい」「この範囲を深掘りした地図に」。
   出力は必ず `repo-map v1` テキスト。
-  禁止: DSL を出さずに Mermaid / Figma / SVG など図を直接生成しないこと（描画は `notation-render` の役割）。
+  禁止: DSL を出さずに Mermaid / Figma など図を直接生成しないこと（描画は `notation-render` の役割）。
   リポジトリの全ファイルを列挙して DSL に埋め込まないこと（package / module 粒度に抽象化する）。
 ---
 
@@ -20,13 +20,13 @@ description: >
 
 ## 目的とスコープ
 
-この Skill の仕事は**ただ 1 つ**——リポジトリ構造を `repo-map v1` という固定文法の **DSL テキストに変換すること**。SVG や HTML の座標規約は扱わない（それは [notation-render](../notation-render/SKILL.md)）。図そのものも描かない。**出力は常に `# repo-map v1` で始まるテキスト**である。
+この Skill の仕事は**ただ 1 つ**——リポジトリ構造を `repo-map v1` という固定文法の **DSL テキストに変換すること**。HTML の座標規約は扱わない（それは [notation-render](../notation-render/SKILL.md)）。図そのものも描かない。**出力は常に `# repo-map v1` で始まるテキスト**である。
 
 設計の土台（なぜ DSL を正本にするか、意味とレイアウトを分けるか）は [notation-core](../notation-core/SKILL.md) を参照。`repo-map v1` の**正式文法・検証コードは [references/grammar.md](references/grammar.md) が正本**。
 
 ## やってはいけないこと
 
-- ❌ DSL を出さずに、Mermaid / Figma / SVG など**図を直接生成しない**。図が欲しいと言われても、まず DSL を出し、描画は `notation-render` に渡す。
+- ❌ DSL を出さずに、Mermaid / Figma など**図を直接生成しない**。図が欲しいと言われても、まず DSL を出し、描画は `notation-render` に渡す。
 - ❌ リポジトリの**全ファイルを列挙**して DSL に詰め込まない。地図は網羅ではなく圧縮。package / module 粒度に抽象化する。
 - ❌ 上限（ノード ≤ 40・エッジ ≤ 80・有意行 ≤ 200）を超えたまま提出しない。超えたら深度を上げ、範囲を絞る。
 

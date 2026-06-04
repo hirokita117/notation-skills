@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 // build-gallery — repo-map DSL カタログ（Storybook 風ギャラリー）の決定的ビルダー
 //
-// examples/*.dsl を走査し、各例の「DSL 全文 / 生成 HTML（インタラクティブ Viewer・iframe）/ SVG」を
+// examples/*.dsl を走査し、各例の「DSL 全文 / 生成 HTML（インタラクティブ Viewer・iframe）」を
 // 1 画面で見比べる静的ギャラリーを生成する。生成は render_repo_map.mjs（決定的レンダラー）に委譲し、
 // Storybook 本体や npm 依存は使わない（Node 標準ライブラリのみ）。成果物は file:// で開ける。
 //
 // 出力（既定でリポジトリ直下 gallery/）:
-//   gallery/index.html        … 左=バージョン別ストーリー一覧、右=[Preview HTML][SVG][DSL source] タブ
+//   gallery/index.html        … 左=バージョン別ストーリー一覧、右=[Preview HTML][DSL source] タブ
 //   gallery/<id>.html         … 各 valid 例の生成 HTML（iframe プレビュー用）
-//   gallery/<id>.svg          … 各 valid 例の SVG
 // invalid な例は描画せず、stderr 形式の診断（diagnostics）を一覧に表示する。
 //
 // 使い方:
@@ -56,9 +55,9 @@ export function parseStoryMeta(id, dslText) {
   const storyLine = lines.map((l) => l.match(/^#\s*story:\s*(.+?)\s*$/)).find(Boolean);
   const descLine = lines.map((l) => l.match(/^#\s*desc:\s*(.+?)\s*$/)).find(Boolean);
 
-  const svgRes = render(dslText, "svg");
-  const valid = svgRes.ok;
-  const model = valid ? JSON.parse(render(dslText, "json").output) : null;
+  const res = render(dslText, "json");
+  const valid = res.ok;
+  const model = valid ? JSON.parse(res.output) : null;
 
   const tags = [];
   if (!valid) tags.push("invalid");
@@ -84,7 +83,7 @@ export function parseStoryMeta(id, dslText) {
     if (focus !== undefined) parts.push(`focus=${focus}`);
     desc = parts.join(" · ");
   } else {
-    const errs = sortDiagnostics(svgRes.diagnostics).filter((d) => d.severity === "error").length;
+    const errs = sortDiagnostics(res.diagnostics).filter((d) => d.severity === "error").length;
     desc = `${errs} 件のエラー（描画不可）`;
   }
 
@@ -92,27 +91,26 @@ export function parseStoryMeta(id, dslText) {
 }
 
 /**
- * 1 ストーリー分の成果物を組み立てる純関数。valid なら svg/html を生成、invalid なら診断テキストを持つ。
+ * 1 ストーリー分の成果物を組み立てる純関数。valid なら html を生成、invalid なら診断テキストを持つ。
  * @param {string} id  拡張子なし ID
  * @param {string} dslText
  * @param {string} relPath  HTML に埋め込む DSL のリポジトリ相対パス
- * @returns {{ id, version, title, desc, tags, valid, dsl, svg, html, diagnostics }}
+ * @returns {{ id, version, title, desc, tags, valid, dsl, html, diagnostics }}
  */
 export function buildStory(id, dslText, relPath) {
   const meta = parseStoryMeta(id, dslText);
   const valid = !meta.tags.includes("invalid");
   if (!valid) {
-    const r = render(dslText, "svg");
+    const r = render(dslText, "json");
     return {
       ...meta, id, valid,
-      dsl: dslText, svg: null, html: null,
+      dsl: dslText, html: null,
       diagnostics: formatDiagnostics(sortDiagnostics(r.diagnostics)),
     };
   }
   return {
     ...meta, id, valid,
     dsl: dslText,
-    svg: render(dslText, "svg").output,
     html: render(dslText, "html", relPath).output,
     diagnostics: null,
   };
@@ -167,7 +165,6 @@ export function renderIndexHtml(stories) {
     data[s.id] = {
       title: s.title, version: s.version, tags: s.tags, valid: s.valid,
       dsl: s.dsl,
-      svg: s.valid ? `${s.id}.svg` : null,
       html: s.valid ? `${s.id}.html` : null,
       diagnostics: s.diagnostics,
     };
@@ -219,8 +216,6 @@ export function renderIndexHtml(stories) {
   .pane { display:none; }
   .pane.active { display:block; }
   .preview-frame { width:100%; height:740px; border:1px solid var(--border); border-radius:8px; background:#fff; }
-  .svg-wrap { border:1px solid var(--border); border-radius:8px; background:#fff; padding:12px; overflow:auto; }
-  .svg-wrap img { display:block; max-width:100%; height:auto; }
   pre.code { border:1px solid var(--border); border-radius:8px; background:#fff; padding:12px;
     font-family:var(--mono); font-size:12px; line-height:1.5; overflow:auto; white-space:pre; margin:0; }
   pre.diag { color:#991B1B; }
@@ -229,7 +224,7 @@ export function renderIndexHtml(stories) {
 <body>
 <header>
   <h1>repo-map DSL カタログ</h1>
-  <p class="sub">repo-map v1 の代表例を「DSL 全文 / 生成 HTML / SVG」で見比べる。左で例を選び、右のタブで切り替え。</p>
+  <p class="sub">repo-map v1 の代表例を「DSL 全文 / 生成 HTML」で見比べる。左で例を選び、右のタブで切り替え。</p>
 </header>
 <div class="app">
   <nav class="sidebar">
@@ -239,13 +234,11 @@ ${groups.map(groupSection).join("\n")}
     <div class="detail-head" id="detail-title"></div>
     <div class="tabs">
       <button class="tab-btn" data-tab="preview">Preview HTML</button>
-      <button class="tab-btn" data-tab="svg">SVG</button>
       <button class="tab-btn" data-tab="dsl">DSL source</button>
       <button class="tab-btn" data-tab="diag">Diagnostics</button>
     </div>
     <div class="panes">
       <div class="pane" data-pane="preview"><iframe class="preview-frame" id="preview" title="repo-map HTML preview"></iframe></div>
-      <div class="pane" data-pane="svg"><div class="svg-wrap"><img id="svg-img" alt="repo-map SVG"></div></div>
       <div class="pane" data-pane="dsl"><pre class="code" id="dsl-pre"></pre></div>
       <div class="pane" data-pane="diag"><pre class="code diag" id="diag-pre"></pre></div>
     </div>
@@ -260,13 +253,12 @@ ${groups.map(groupSection).join("\n")}
 
   var titleEl = document.getElementById("detail-title");
   var iframe = document.getElementById("preview");
-  var svgImg = document.getElementById("svg-img");
   var dslPre = document.getElementById("dsl-pre");
   var diagPre = document.getElementById("diag-pre");
   var tabBtns = Array.prototype.slice.call(document.querySelectorAll(".tab-btn"));
   var panes = Array.prototype.slice.call(document.querySelectorAll(".pane"));
 
-  function tabsFor(s) { return s.valid ? ["preview", "svg", "dsl"] : ["dsl", "diag"]; }
+  function tabsFor(s) { return s.valid ? ["preview", "dsl"] : ["dsl", "diag"]; }
 
   function showTab(tab) {
     var s = DATA[current];
@@ -277,8 +269,6 @@ ${groups.map(groupSection).join("\n")}
     panes.forEach(function (p) { p.classList.toggle("active", p.dataset.pane === tab); });
     if (tab === "preview") {
       if (iframe.getAttribute("src") !== s.html) iframe.setAttribute("src", s.html);
-    } else if (tab === "svg") {
-      if (svgImg.getAttribute("src") !== s.svg) svgImg.setAttribute("src", s.svg);
     } else if (tab === "dsl") {
       dslPre.textContent = s.dsl;
     } else if (tab === "diag") {
@@ -338,7 +328,6 @@ export function buildGallery(opts = {}) {
   mkdirSync(outDir, { recursive: true });
   for (const s of stories) {
     if (s.valid) {
-      writeFileSync(join(outDir, `${s.id}.svg`), s.svg);
       writeFileSync(join(outDir, `${s.id}.html`), s.html);
     }
   }

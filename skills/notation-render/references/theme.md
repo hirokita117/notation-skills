@@ -38,5 +38,5 @@ FONT_SIZE_LEGEND= 12px
 
 ## 関連
 - 決定的レイアウト（座標・帯順・寸法定数）: [layout-algorithm.md](layout-algorithm.md)
-- 出力形式（このテーマで SVG/HTML を出す）: [output-formats.md](output-formats.md)
+- 出力形式（このテーマで HTML を出す）: [output-formats.md](output-formats.md)
 - 内部モデル: [grammar.md §4](../../repo-map-notation/references/grammar.md)

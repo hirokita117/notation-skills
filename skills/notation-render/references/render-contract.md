@@ -53,7 +53,7 @@ RepoMap {
 検証を通った `RepoMap` から座標を決める。`@layout` の rank/group を尊重し、無い／部分のところは決定的アルゴリズムで埋める。手順とタイブレークは [layout-algorithm.md](layout-algorithm.md)。**ここで初めて座標が生まれる**（モデル自体は座標を持たない）。
 
 ### 4. emit
-固定テーマで図を書き出す。既定は SVG、次に HTML、任意で Mermaid。形式ごとの規約は [output-formats.md](output-formats.md)。色・フォントは固定テーマ（[theme.md](theme.md)）、寸法・座標は固定定数（[layout-algorithm.md](layout-algorithm.md)）。
+固定テーマで図を書き出す。既定は HTML、任意で Mermaid。形式ごとの規約は [output-formats.md](output-formats.md)。色・フォントは固定テーマ（[theme.md](theme.md)）、寸法・座標は固定定数（[layout-algorithm.md](layout-algorithm.md)）。
 
 ---
 
@@ -63,7 +63,7 @@ RepoMap {
 
 - parse・validate・layout・emit のいずれにも**乱数・実行時刻**を入れない。
 - 並び順を決める比較はすべて**全順序**（最後の決め手はノードのソース順 / エッジの index）。
-- 唯一、決定性の対象外なのは Mermaid 出力（レイアウトを Mermaid 側に委ねるため）。SVG が決定的な正典であり、Mermaid は便宜的な派生にすぎない（[output-formats.md](output-formats.md)）。
+- 唯一、決定性の対象外なのは Mermaid 出力（レイアウトを Mermaid 側に委ねるため）。HTML が決定的な正典であり、Mermaid は便宜的な派生にすぎない（[output-formats.md](output-formats.md)）。
 
 ## 関連
 - 文法・内部モデル・検証（正本）: [repo-map-notation/references/grammar.md](../../repo-map-notation/references/grammar.md)
