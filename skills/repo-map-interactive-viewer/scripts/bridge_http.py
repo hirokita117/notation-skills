@@ -122,7 +122,10 @@ class BridgeHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"ok": False, "error": error})
             return
 
-        prompt = build_prompt(cleaned)
+        # DSL 正本のパスはサーバ設定（--dsl・起動時 realpath 済みの絶対パス）から注入する。
+        # client は dsl パスを送れない（validate_ask_payload が固定フィールドだけに刈り込む）。
+        # config.dsl が None のときは build_prompt 内の line() が「(未指定)」に吸収する。
+        prompt = build_prompt(cleaned, dsl_file=self.config.dsl)
         result = self._run_claude_with_session(
             prompt, model=cleaned.get("model"), effort=cleaned.get("effort")
         )

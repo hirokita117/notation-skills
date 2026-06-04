@@ -45,6 +45,15 @@ HTML は **インタラクティブ Viewer を既定**として出す。SVG（§
 よって **同じ DSL → 同じ HTML**。乱数・時刻・気分は持ち込まない。
 SVG（§1）は引き続き**決定的な正典**で、HTML はそれを使う派生物。
 
+**DSL 正本パスの埋め込み（任意・`data-repo-map-dsl`）**: ルート要素 `<html>` に、入力 DSL ファイルの
+**絶対パス**を `data-repo-map-dsl` 属性として載せる。`render_repo_map.mjs` が CLI 入力ファイルパスを
+`realpathSync` で解決して付与し、stdin / `-`（パス不明）では **属性を出さない**。Viewer の copy プロンプト
+（`buildPrompt`）がこれを読み `repo-map DSL file:` 行に使う（未付与なら `(未指定)`）。これは
+**環境入力（入力ファイルの場所）由来**で DSL 本文には含まれないため、「同じ DSL → 同じ HTML」は同一の入力パス
+（または同じく stdin）を前提とする。属性スキーマは
+[html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md) の
+「ドキュメントの DSL 正本パス」を参照。
+
 HTML Viewer は閲覧時に**ノードのドラッグ移動**にも対応してよい（掴んで動かすと接続線とラベル・ID が追従する）。これは view-time の表示操作のみで、`data-*` の導出にも出力ファイルの決定性にも影響しない（リロードで初期レイアウトに戻る）。属性スキーマは [html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md) の「ドラッグ用属性」を参照。
 
 **責務の外**: Claude Code CLI 呼び出し・Python ブリッジ本体・起動手順は **この Skill の責務ではない**。

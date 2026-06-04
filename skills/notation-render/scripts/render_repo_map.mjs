@@ -41,10 +41,12 @@ const FORMATS = new Set(["svg", "html", "json", "mermaid"]);
  * DSL テキストを 1 形式へレンダリングする純関数。
  * @param {string} text  DSL 本文
  * @param {"svg"|"html"|"json"|"mermaid"} format
+ * @param {string|null} [sourcePath]  入力 DSL の絶対パス（html のみ使用）。`<html data-repo-map-dsl>`
+ *   に埋め込み、Viewer の Copy プロンプトの `repo-map DSL file:` 行に使う。stdin 等で不明なら null（埋め込まない）。
  * @returns {{ ok: boolean, output: string, diagnostics: object[] }}
  *   ok=false（error あり）なら output は空文字。diagnostics は警告も含む（描画時も報告する）。
  */
-export function render(text, format = "svg") {
+export function render(text, format = "svg", sourcePath = null) {
   const { repoMap, diagnostics: parseDiags, info, fatal } = parse(text);
   const all = sortDiagnostics(fatal ? parseDiags : parseDiags.concat(validate(repoMap, info)));
 
@@ -57,7 +59,7 @@ export function render(text, format = "svg") {
     output = emitMermaid(repoMap);
   } else {
     const layout = computeLayout(repoMap);
-    output = format === "html" ? emitHtml(repoMap, layout) : emitSvg(repoMap, layout);
+    output = format === "html" ? emitHtml(repoMap, layout, { sourcePath }) : emitSvg(repoMap, layout);
   }
   return { ok: true, output, diagnostics: all };
 }
@@ -137,7 +139,11 @@ export function main(argv, io = {}) {
     return 2;
   }
 
-  const result = render(text, args.format);
+  // html 用に入力 DSL の絶対パスを解決して埋め込む（stdin / `-` は不明なので null）。
+  // readFileSync 成功後なので realpathSync は存在保証あり。svg/json/mermaid では未使用。
+  const sourcePath = args.input && args.input !== "-" ? realpathSync(args.input) : null;
+
+  const result = render(text, args.format, sourcePath);
   if (result.diagnostics.length) err.write(formatDiagnostics(result.diagnostics));
   if (!result.ok) return 1;
   out.write(result.output);

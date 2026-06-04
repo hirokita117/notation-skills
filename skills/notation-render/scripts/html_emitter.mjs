@@ -11,16 +11,23 @@
 // 逐語保持する（`\n` 等のエスケープを壊さない）。
 
 import { emitSvg } from "./svg_emitter.mjs";
+import { encodeAttr } from "./attrs.mjs";
 
 /**
  * RepoMap ＋ layout からインタラクティブ HTML を作る。
+ * @param {object} [options]
+ * @param {string|null} [options.sourcePath]  入力 DSL の絶対パス。指定時は `<html>` に
+ *   `data-repo-map-dsl` 属性として埋め込み、ブラウザ内 buildPrompt が `repo-map DSL file:` 行に使う。
+ *   未指定（falsy）なら属性を出さない（決定性・後方互換）。
  * @returns {string}
  */
-export function emitHtml(repoMap, layout) {
+export function emitHtml(repoMap, layout, options = {}) {
   const svg = emitSvg(repoMap, layout, { rootAttrs: 'class="diagram"' });
   return [
     "<!DOCTYPE html>",
-    '<html lang="ja">',
+    options.sourcePath
+      ? `<html lang="ja" data-repo-map-dsl="${encodeAttr(options.sourcePath)}">`
+      : '<html lang="ja">',
     "<head>",
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
@@ -192,6 +199,10 @@ const OVERLAY = `<div id="stopped-overlay">ブリッジを停止しました。�
 const SCRIPT = String.raw`(function () {
   "use strict";
 
+  // repo-map DSL 正本ファイルの絶対パス（生成時に <html data-repo-map-dsl> へ埋め込まれる）。
+  // copy/file:// モードの buildPrompt が「repo-map DSL file:」行に使う。未埋め込みなら空＝(未指定)。
+  var DSL_FILE = document.documentElement.getAttribute("data-repo-map-dsl") || "";
+
   // --- モード判定: 127.0.0.1 配信なら bridge、それ以外（file:// 等）は copy フォールバック ---
   var isBridge = (location.protocol === "http:" || location.protocol === "https:") &&
                  (location.hostname === "127.0.0.1" || location.hostname === "localhost");
@@ -265,10 +276,13 @@ const SCRIPT = String.raw`(function () {
       "kind: " + line(p.kind) + "\n" +
       "path: " + line(p.path) + "\n" +
       "related edges:\n" + block(p.relatedEdges) + "\n\n" +
+      "repo-map DSL file: " + line(DSL_FILE) + "\n" +
       "DSL excerpt:\n" + block(p.dslExcerpt) + "\n\n" +
       "ユーザーの質問:\n" + (question || "").trim() + "\n\n" +
       "回答方針:\n" +
       "- まず repo-map DSL 上の意味を説明してください。\n" +
+      "- repo-map DSL file が指定されているときは、まずそのファイルを Read して excerpt と整合を確認してください。\n" +
+      "- DSL ファイルパスが未指定のときは excerpt を正としてください。\n" +
       "- 必要なら Read / Glob / Grep で実ファイルを確認してください。\n" +
       "- 推測と確認済み事実を分けてください。\n" +
       "- ファイル編集、生成、削除はしないでください。\n" +

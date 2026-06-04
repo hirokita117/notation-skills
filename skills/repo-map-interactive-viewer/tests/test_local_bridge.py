@@ -112,6 +112,24 @@ class PromptTests(unittest.TestCase):
         self.assertIn("related edges:\n(なし)", prompt)
         self.assertIn("DSL excerpt:\n(なし)", prompt)
 
+    def test_build_prompt_includes_dsl_file_when_given(self):
+        prompt = bridge.build_prompt({"question": "q"}, dsl_file="/repo/docs/repo-map.dsl")
+        # DSL excerpt の直前に絶対パス行を置く
+        self.assertIn("repo-map DSL file: /repo/docs/repo-map.dsl\nDSL excerpt:\n", prompt)
+        # 回答方針に DSL ファイル関連の 2 行が入る
+        self.assertIn(
+            "- repo-map DSL file が指定されているときは、まずそのファイルを Read して excerpt と整合を確認してください。",
+            prompt,
+        )
+        self.assertIn("- DSL ファイルパスが未指定のときは excerpt を正としてください。", prompt)
+
+    def test_build_prompt_dsl_file_placeholder_when_absent(self):
+        # 省略時 / None はどちらも (未指定)
+        self.assertIn("repo-map DSL file: (未指定)", bridge.build_prompt({"question": "q"}))
+        self.assertIn(
+            "repo-map DSL file: (未指定)", bridge.build_prompt({"question": "q"}, dsl_file=None)
+        )
+
 
 class ClaudeArgvTests(unittest.TestCase):
     def test_argv_shape_is_safe(self):
@@ -444,7 +462,8 @@ class _Recorder:
         self.ok = ok
 
     def __call__(self, prompt, config, *, model=None, effort=None, session_id=None, resume=False):
-        self.calls.append({"session_id": session_id, "resume": resume, "model": model, "effort": effort})
+        self.calls.append({"prompt": prompt, "session_id": session_id, "resume": resume,
+                           "model": model, "effort": effort})
         if self.ok:
             return {"ok": True, "answer": "A", "raw": None}
         return {"ok": False, "error": "boom", "detail": "x"}
@@ -453,9 +472,9 @@ class _Recorder:
 class _LiveServerCase(unittest.TestCase):
     """BridgeServer をスレッドで立て、bridge.run_claude を差し替える土台。"""
 
-    def _start(self, run_claude_fn=None, session_continuity=True):
+    def _start(self, run_claude_fn=None, session_continuity=True, dsl=None):
         self.tmp = tempfile.mkdtemp()
-        self.config = make_config(self.tmp, html=EXAMPLE_HTML)
+        self.config = make_config(self.tmp, html=EXAMPLE_HTML, dsl=dsl)
         self.server = bridge.BridgeServer(("127.0.0.1", 0), bridge.BridgeHandler)
         self.server.bridge_config = self.config
         self.server.session_continuity = session_continuity
@@ -631,14 +650,46 @@ class InjectionTests(_LiveServerCase):
     def test_validate_drops_unknown_keys(self):
         cfg = make_config(self.tmp)
         cleaned, err = bridge.validate_ask_payload(
-            {"question": "q", "sessionId": "evil", "session_id": "evil2"}, cfg
+            {"question": "q", "sessionId": "evil", "session_id": "evil2",
+             "dslFile": "/etc/passwd", "dslPath": "../secret", "dsl": "x"}, cfg
         )
         self.assertIsNone(err)
         self.assertNotIn("sessionId", cleaned)
         self.assertNotIn("session_id", cleaned)
+        # client は DSL パスを送れない（サーバが --dsl から注入する）。未知キーは落ちる。
+        self.assertNotIn("dslFile", cleaned)
+        self.assertNotIn("dslPath", cleaned)
+        self.assertNotIn("dsl", cleaned)
         # model/effort は既知キー化されたが、未指定なら None（フラグ省略）
         self.assertIsNone(cleaned["model"])
         self.assertIsNone(cleaned["effort"])
+
+
+# --- DSL ファイルパスのサーバ注入（client は送らない） ----------------------
+
+class DslInjectionTests(_LiveServerCase):
+    def setUp(self):
+        self.rec = _Recorder(ok=True)
+        self._start(run_claude_fn=self.rec)
+        # --dsl 相当（サーバ設定の絶対パス）。BridgeConfig は非 frozen なので後から設定できる。
+        # build_prompt は config.dsl を逐語で載せるだけなのでファイル実在は不要。
+        self.dsl_abs = os.path.join(os.path.realpath(self.tmp), "docs", "repo-map.dsl")
+        self.config.dsl = self.dsl_abs
+
+    def test_ask_injects_dsl_file_absolute_path(self):
+        # client は dsl を送らない（送っても無視）。サーバ設定の絶対パスがプロンプトに載る。
+        status, _ = request(self.port, "POST", "/api/ask",
+                            {"question": "q", "nodeId": "web", "dslFile": "/etc/passwd"})
+        self.assertEqual(status, 200)
+        prompt = self.rec.calls[0]["prompt"]
+        self.assertIn("repo-map DSL file: " + self.dsl_abs + "\n", prompt)
+        self.assertNotIn("/etc/passwd", prompt)  # client 供給のパスは載らない
+
+    def test_ask_dsl_unspecified_when_config_none(self):
+        self.config.dsl = None
+        status, _ = request(self.port, "POST", "/api/ask", {"question": "q"})
+        self.assertEqual(status, 200)
+        self.assertIn("repo-map DSL file: (未指定)", self.rec.calls[-1]["prompt"])
 
 
 # --- ポート確保（reclaim）のテスト ------------------------------------------

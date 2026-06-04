@@ -60,3 +60,29 @@ test("embedded SVG node block is byte-identical to standalone SVG node block", (
   const block = (s) => s.match(/<g class="node" data-node-id="core"[\s\S]*?<\/g>/)[0];
   assert.equal(block(html), block(svg));
 });
+
+test("sourcePath embeds data-repo-map-dsl on <html> and stays deterministic", () => {
+  const rm = parse(readExample("example-a.dsl")).repoMap;
+  const L = computeLayout(rm);
+  const h = emitHtml(rm, L, { sourcePath: "/repo/docs/repo-map.dsl" });
+  assert.ok(h.includes('<html lang="ja" data-repo-map-dsl="/repo/docs/repo-map.dsl">'), "html attr");
+  assert.ok(h.includes("repo-map DSL file:"), "prompt line literal present");
+  assert.equal(h, emitHtml(rm, L, { sourcePath: "/repo/docs/repo-map.dsl" })); // 同入力→同出力
+});
+
+test("no sourcePath: <html> has no data-repo-map-dsl attribute, but buildPrompt still has the line + bullets", () => {
+  const h = htmlOf("example-a.dsl");
+  // `data-repo-map-dsl="` は実属性のときだけ現れる（SCRIPT の getAttribute("data-repo-map-dsl") は `="` を含まない）
+  assert.ok(!h.includes('data-repo-map-dsl="'), "no <html> attribute when sourcePath omitted");
+  assert.ok(h.includes('<html lang="ja">'), "bare html tag");
+  assert.ok(h.includes("repo-map DSL file:"), "prompt line literal");
+  assert.ok(h.includes("repo-map DSL file が指定されているときは"), "guidance bullet 1");
+  assert.ok(h.includes("DSL ファイルパスが未指定のときは excerpt を正としてください"), "guidance bullet 2");
+});
+
+test("sourcePath is attribute-escaped via encodeAttr", () => {
+  const rm = parse(readExample("example-a.dsl")).repoMap;
+  const L = computeLayout(rm);
+  const h = emitHtml(rm, L, { sourcePath: 'a"b<c\nd' });
+  assert.ok(h.includes('data-repo-map-dsl="a&quot;b&lt;c&#10;d"'), "escaped attribute value");
+});

@@ -9,8 +9,12 @@ from __future__ import annotations
 
 # --- プロンプト生成（純粋関数・テスト対象） ----------------------------------
 
-def build_prompt(payload: dict) -> str:
-    """HTML から受け取ったノード情報＋質問を Claude Code 用プロンプトに整形する。"""
+def build_prompt(payload: dict, dsl_file: str | None = None) -> str:
+    """HTML から受け取ったノード情報＋質問を Claude Code 用プロンプトに整形する。
+
+    dsl_file は repo-map DSL 正本ファイルの絶対パス（サーバ注入・任意）。None / 空なら
+    `(未指定)` を載せる。client からは受け取らない（呼び出し側がサーバ設定から渡す）。
+    """
 
     def line(value) -> str:
         text = (value or "").strip() if isinstance(value, str) else ""
@@ -35,6 +39,7 @@ def build_prompt(payload: dict) -> str:
         "related edges:\n"
         f"{block(payload.get('relatedEdges'))}\n"
         "\n"
+        f"repo-map DSL file: {line(dsl_file)}\n"
         "DSL excerpt:\n"
         f"{block(payload.get('dslExcerpt'))}\n"
         "\n"
@@ -43,6 +48,8 @@ def build_prompt(payload: dict) -> str:
         "\n"
         "回答方針:\n"
         "- まず repo-map DSL 上の意味を説明してください。\n"
+        "- repo-map DSL file が指定されているときは、まずそのファイルを Read して excerpt と整合を確認してください。\n"
+        "- DSL ファイルパスが未指定のときは excerpt を正としてください。\n"
         "- 必要なら Read / Glob / Grep で実ファイルを確認してください。\n"
         "- 推測と確認済み事実を分けてください。\n"
         "- ファイル編集、生成、削除はしないでください。\n"
