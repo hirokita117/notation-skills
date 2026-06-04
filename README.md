@@ -51,6 +51,98 @@
 
 ---
 
+## 要件（Requirements）
+
+本リポジトリは **Claude Code の plugin**（[インストール](#インストール)）として配布します。plugin の `install` は **Skill の Markdown と同梱スクリプトをキャッシュに置く**だけで、**Node.js や Python は一緒には入りません**。使う機能に応じて、手元のマシンに次を用意してください。
+
+### ホスト環境（共通）
+
+| 要件 | 必須？ | 説明 |
+|------|--------|------|
+| **Skill 対応エージェント** | ✅（plugin 利用時は **Claude Code**） | `SKILL.md` を読んで従う本体。plugin 導入は Claude Code の `/plugin` 系コマンド。Cursor 等へ手動コピーする場合は、そのツールが Agent Skills を読めること。 |
+| **対象リポジトリの読み取り** | `repo-map-notation` 利用時 | エージェントがファイル・依存関係を調べられること（エージェント側のツールに依存）。 |
+| **Web ブラウザ** | HTML / SVG を見るとき | 生成物のプレビュー用。 |
+
+plugin 導入後、Skill 本文と `skills/**/scripts/` は **`~/.claude/plugins/` 配下のキャッシュ**に置かれます（手動コピーの場合は `~/.claude/skills/` またはプロジェクトの `.claude/skills/`）。エージェントがレンダラーやブリッジを実行するときは、**インストール先の `skills/...` パス**を指します（clone した場合はリポジトリ内の同じ相対パス）。
+
+**npm / pip のインストールは不要**です（同梱スクリプトは Node 標準ライブラリ・Python 標準ライブラリのみ）。
+
+### 使い方ごとに必要なもの
+
+| やりたいこと | 追加で必要なもの |
+|--------------|------------------|
+| DSL だけ作る（`repo-map-notation`） | なし（エージェントのみ） |
+| 設計原則の参照（`notation-core`） | なし |
+| **決定的に** SVG / HTML を出す（`notation-render`・推奨） | **Node.js 18+**（推奨 20+）。`node skills/notation-render/scripts/render_repo_map.mjs ...` |
+| インタラクティブ HTML を **bridge** で Claude に質問 | **Python 3**（標準ライブラリのみ）＋ **`claude` CLI** |
+| インタラクティブ HTML を **prompt copy** のみ | ブラウザのみ（ブリッジ・`claude` CLI 不要） |
+
+`notation-render` は、同じ DSL から毎回同じ図にするため **LLM が SVG を手書きするのではなく、同梱レンダラーを実行するのが主経路**です。Node が無い環境ではエージェントが仕様どおり描くこともできますが、決定性・再現性の面では **Node がある環境を推奨**します。
+
+### Skill ごとの依存（一覧）
+
+| Skill | 同梱スクリプト | ランタイム |
+|-------|----------------|------------|
+| `notation-core` | なし | 不要 |
+| `repo-map-notation` | なし | 不要 |
+| `notation-render` | `scripts/*.mjs` | **Node.js 18+**（外部パッケージなし） |
+| `repo-map-interactive-viewer` | `scripts/*.py` 等 | **Python 3**（stdlib のみ）＋ bridge 時は **`claude` CLI** |
+
+レンダラーの詳細は [`skills/notation-render/scripts/README.md`](skills/notation-render/scripts/README.md)、ブリッジは [`skills/repo-map-interactive-viewer/references/local-bridge.md`](skills/repo-map-interactive-viewer/references/local-bridge.md) を参照してください。
+
+### ランタイムの確認
+
+ターミナルで次を実行し、バージョンが表示されれば利用可能です。
+
+```
+node --version    # v18 以上（推奨 v20 以上）
+python3 --version # 3.8 以上（3.10+ 推奨）
+claude --version  # bridge 方式のみ
+```
+
+`command not found` や古いバージョンのときは、下記のいずれかで入れてください。**本リポジトリ用の pip / npm install は不要**です（ランタイム本体だけあれば足ります）。
+
+### 無い場合のインストール
+
+#### Node.js（`notation-render`）
+
+| 環境 | 例 |
+|------|-----|
+| **macOS**（Homebrew） | `brew install node` |
+| **macOS / Linux / Windows**（バージョン管理） | [nvm](https://github.com/nvm-sh/nvm) で `nvm install 20` → `nvm use 20` |
+| **公式インストーラ** | [https://nodejs.org/](https://nodejs.org/) から LTS（20.x など）を入れる |
+| **Windows**（winget） | `winget install OpenJS.NodeJS.LTS` |
+
+入れたあと、新しいターミナルで `node --version` を再確認してください。
+
+#### Python 3（`repo-map-interactive-viewer` の bridge）
+
+macOS には `python3` が入っていることが多いです。無い・古いときだけ入れます。
+
+| 環境 | 例 |
+|------|-----|
+| **macOS**（Homebrew） | `brew install python` |
+| **Ubuntu / Debian** | `sudo apt update && sudo apt install python3` |
+| **Fedora** | `sudo dnf install python3` |
+| **公式インストーラ** | [https://www.python.org/downloads/](https://www.python.org/downloads/)（インストール時に「Add to PATH」を有効にする） |
+| **Windows**（winget） | `winget install Python.Python.3.12` |
+
+入れたあと `python3 --version` を確認してください。ブリッジ起動例は README 後半の「インタラクティブ Viewer」、`python3` が無い環境では `python` を試してください。
+
+#### `claude` CLI（bridge 方式のみ）
+
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code) を入れると、通常は `claude` コマンドも使えます。`claude --version` が通らない場合は Claude Code のドキュメントに従って CLI を有効化してください。bridge を使わず **prompt copy** だけなら不要です。
+
+### plugin 配布と手動コピーの違い（要件の観点）
+
+| | plugin（方法 A） | 手動コピー（方法 B） |
+|---|------------------|----------------------|
+| Skill 本文の入手 | `/plugin install` でキャッシュに配置 | `cp` で所定の `skills/` に配置 |
+| Node / Python | **別途、利用者マシンに必要**（上表どおり） | 同左 |
+| 更新 | `marketplace update` でキャッシュ更新 | 再コピー |
+
+---
+
 ## インストール
 
 導入方法は大きく **2 つ** あります。**基本は方法 A（plugin）で十分**です。「素のファイルとして `~/.claude/skills/` に置きたい」など特別な理由があるときだけ方法 B を選びます。
