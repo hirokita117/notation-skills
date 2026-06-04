@@ -4,28 +4,24 @@
 // 重複/孤立/循環/大小衝突など。error が 1 つでもあれば描画はブロックされる（facade が判定）。
 // 行番号は parser が作った side-map `info` から引く。grammar.md §7.2 / §7.4 / §7.5 の実装。
 
-import { isHierarchy, REQUIRED_META_KEYS, LIMITS } from "./model.mjs";
+import { resolveProfile } from "./profiles.mjs";
 import { error, warning } from "./diagnostics.mjs";
-
-// depth ごとに「細かすぎる」kind（§7.4）。system/external/datastore は全 depth 許可。
-const DEPTH_EXCEED = {
-  0: new Set(["module", "file-group"]),
-  1: new Set(["file-group"]),
-  2: new Set(),
-};
 
 /**
  * 検証する。parser の診断とは別に、意味検査の診断だけを返す（facade が両者を結合・ソート）。
+ * 列挙・上限・depth×kind・階層分類はプロファイル由来（未指定なら model.version から解決）。
  * @param {object} repoMap
  * @param {object} info  parser が返した side-map（行番号など）
+ * @param {object} [profile]  バージョン別プロファイル（未指定なら repoMap.version から解決）
  * @returns {object[]} diagnostics
  */
-export function validate(repoMap, info) {
+export function validate(repoMap, info, profile) {
+  const p = resolveProfile(profile, repoMap);
   const out = [];
   const nodes = repoMap.nodes;
 
   // --- 必須 meta キー（§3.2・新コード E-METAMISSING） ---
-  const missing = REQUIRED_META_KEYS.filter((k) => !info.metaKeyLines.has(k));
+  const missing = p.requiredMetaKeys.filter((k) => !info.metaKeyLines.has(k));
   if (missing.length > 0) {
     out.push(error("E-METAMISSING", null,
       `missing required meta key(s): ${missing.join(", ")}`, "add the missing meta key(s)"));
@@ -75,7 +71,7 @@ export function validate(repoMap, info) {
   // --- depth と kind の整合（§7.4 W-DEPTHEXCEED） ---
   const depth = repoMap.meta.depth;
   if (depth === 0 || depth === 1 || depth === 2) {
-    const forbidden = DEPTH_EXCEED[depth];
+    const forbidden = p.depthExceed[depth];
     for (const [id, node] of nodes) {
       if (forbidden.has(node.kind)) {
         out.push(warning("W-DEPTHEXCEED", info.nodeLines.get(id) ?? null,
@@ -110,23 +106,23 @@ export function validate(repoMap, info) {
   }
 
   // --- 階層系の循環（§7.3 W-CYCLE） ---
-  if (hasHierarchyCycle(repoMap)) {
+  if (hasHierarchyCycle(repoMap, p)) {
     out.push(warning("W-CYCLE", null,
-      "hierarchical edges (contains/deploys/owns) contain a cycle", "break the hierarchy cycle"));
+      `hierarchical edges (${p.hierarchyList.join("/")}) contain a cycle`, "break the hierarchy cycle"));
   }
 
   // --- 規模上限（§7.5） ---
-  if (nodes.size > LIMITS.nodes) {
+  if (nodes.size > p.limits.nodes) {
     out.push(error("E-MAXNODES", null,
-      `node count ${nodes.size} exceeds ${LIMITS.nodes}`, "raise depth, narrow root, or abstract"));
+      `node count ${nodes.size} exceeds ${p.limits.nodes}`, "raise depth, narrow root, or abstract"));
   }
-  if (repoMap.edges.length > LIMITS.edges) {
+  if (repoMap.edges.length > p.limits.edges) {
     out.push(error("E-MAXEDGES", null,
-      `edge count ${repoMap.edges.length} exceeds ${LIMITS.edges}`, "reduce edges to <=80"));
+      `edge count ${repoMap.edges.length} exceeds ${p.limits.edges}`, "reduce edges to <=80"));
   }
-  if (info.meaningfulLineCount > LIMITS.lines) {
+  if (info.meaningfulLineCount > p.limits.lines) {
     out.push(error("E-MAXLINES", null,
-      `meaningful line count ${info.meaningfulLineCount} exceeds ${LIMITS.lines}`, "reduce to <=200 lines"));
+      `meaningful line count ${info.meaningfulLineCount} exceeds ${p.limits.lines}`, "reduce to <=200 lines"));
   }
 
   return out;
@@ -134,12 +130,12 @@ export function validate(repoMap, info) {
 
 // --- 階層系循環の検出（存在判定のみ。断ち切りは layout が行う） ---
 
-function hasHierarchyCycle(repoMap) {
+function hasHierarchyCycle(repoMap, profile) {
   const adj = new Map();
   for (const [id] of repoMap.nodes) adj.set(id, []);
   for (const e of repoMap.edges) {
     if (e.from === e.to) continue; // 自己辺は E-SELFEDGE。循環判定には含めない
-    if (isHierarchy(e.relation) && adj.has(e.from) && adj.has(e.to)) {
+    if (profile.isHierarchy(e.relation) && adj.has(e.from) && adj.has(e.to)) {
       adj.get(e.from).push(e.to);
     }
   }

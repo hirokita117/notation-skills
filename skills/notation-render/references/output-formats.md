@@ -103,6 +103,27 @@ graph TD
 
 ---
 
+## document-map v1 の差分
+
+`document-map v1` も**同じパイプライン・同じ HTML テンプレート**で出す。版で変わるのは chrome（title・凡例・`data-*-dsl` 属性名・buildPrompt 体裁・kind の色）だけで、SVG 幾何・CSS・Markdown レンダラ・ドラッグ・bridge 連携は repo-map と共通。
+
+- **HTML（フル対話ビューア）**: title は `document-map v1 — interactive viewer`、`<html>` の DSL 正本パス属性は `data-document-map-dsl`。Ask/Copy の buildPrompt は**ドキュメント体裁**（「対象ドキュメント」「document-map DSL file:」「次に読むとよい箇所」など。HTML 側 `buildPrompt` と ブリッジ側 `build_prompt(notation="document-map")` をバイト一致させる）。ブリッジは配信 DSL（`--dsl` 先頭行）から notation を自動判定する（[repo-map-interactive-viewer](../../repo-map-interactive-viewer/SKILL.md)）。
+- **凡例（固定マークアップ）**: kind 9 種の色見本と名前（document / section / concept / requirement / decision / open-question / risk / actor / external、[grammar.md §5](../../document-map-notation/references/grammar.md) の列挙順）。線種は「実線 = 構成（`contains`）」「破線 = 関連（explains / depends-on / decides / raises / mitigates / owns / references / conflicts-with）」。
+- **色**: [theme.md](theme.md) の「document-map v1」表。
+- **Mermaid（任意・正本にしない）**: kind ごとの形は次のとおり（9 種を区別できる便宜的な割り当て）。relation は実線（`-->`）=`contains`、点線（`-.->`）=その他 8 関係。
+
+  | kind | Mermaid の形 |
+  |------|--------------|
+  | document | `[[ ]]`（二重枠） |
+  | section | `[ ]`（矩形） |
+  | concept | `( )`（角丸） |
+  | requirement | `[/ /]`（平行四辺形） |
+  | decision | `{{ }}`（六角形） |
+  | open-question | `{ }`（ひし形） |
+  | risk | `>  ]`（非対称・旗） |
+  | actor | `(( ))`（円） |
+  | external | `([ ])`（スタジアム） |
+
 ## Figma について
 
 - **Figma API / Figma Skill は描画経路に使わない。** この Skill は DSL から HTML / Mermaid を出すまでを責務とする。

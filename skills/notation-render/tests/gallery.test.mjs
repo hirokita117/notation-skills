@@ -33,6 +33,18 @@ test("parseStoryMeta: # story:/# desc: comments override; version & focus tag au
   assert.ok(!m.tags.includes("invalid"));
 });
 
+test("parseStoryMeta: document-map version detected; scope-generic desc uses source", () => {
+  const m = parseStoryMeta("document-map-a", readExample("document-map-a.dsl"));
+  assert.equal(m.version, "document-map v1");
+  assert.ok(m.tags.includes("focus"));
+  assert.ok(!m.tags.includes("invalid"));
+  // 自動 desc（# desc: コメントが無いとき）は scope キー（document-map=source）を使う
+  const noDesc = "# document-map v1\n@meta\n  source: docs/x.md\n  depth: 1\n  generated: 2026-01-01T00:00:00Z\n@nodes\n  d document D\n  s section S\n@edges\n  d s contains\n";
+  const m2 = parseStoryMeta("dm-nodesc", noDesc);
+  assert.equal(m2.version, "document-map v1");
+  assert.match(m2.desc, /^source=docs\/x\.md · depth=1 · 2 nodes \/ 1 edges/);
+});
+
 test("parseStoryMeta: auto-fallback title/desc and layout tag (layout-demo)", () => {
   const m = parseStoryMeta("layout-demo", readExample("layout-demo.dsl"));
   assert.equal(m.title, "layout-demo"); // # story: なし → id フォールバック

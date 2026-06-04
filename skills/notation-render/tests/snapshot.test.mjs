@@ -24,6 +24,11 @@ test("layout-demo snapshots (json) are byte-stable", () => {
   expectSnapshot("layout-demo.dsl", "json", "layout-demo.json");
 });
 
+test("document-map-a snapshots (html/json) are byte-stable", () => {
+  expectSnapshot("document-map-a.dsl", "html", "document-map-a.html");
+  expectSnapshot("document-map-a.dsl", "json", "document-map-a.json");
+});
+
 test("invalid.dsl produces the committed diagnostics", () => {
   const r = render(readExample("invalid.dsl"), "json");
   assert.equal(r.ok, false);

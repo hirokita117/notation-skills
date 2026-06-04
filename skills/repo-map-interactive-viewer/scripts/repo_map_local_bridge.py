@@ -58,6 +58,7 @@ import bridge_claude
 from bridge_config import (  # noqa: F401  (再エクスポート)
     ALLOWED_EFFORTS,
     ALLOWED_HOSTS,
+    ALLOWED_NOTATIONS,
     BridgeConfig,
     DEFAULT_ALLOWED_TOOLS,
     DEFAULT_CLAUDE_TIMEOUT,
@@ -71,7 +72,7 @@ from bridge_config import (  # noqa: F401  (再エクスポート)
     MAX_QUESTION,
     SERVICE_ID,
 )
-from bridge_prompt import build_prompt  # noqa: F401
+from bridge_prompt import build_prompt, detect_notation, DEFAULT_NOTATION  # noqa: F401
 from bridge_claude import (  # noqa: F401
     build_claude_argv,
     parse_claude_output,
@@ -105,7 +106,9 @@ def parse_args(argv=None) -> argparse.Namespace:
     )
     parser.add_argument("--repo-root", required=True, help="対象リポジトリのルート（claude の cwd）")
     parser.add_argument("--html", required=True, help="配信する生成済み repo-map HTML のパス")
-    parser.add_argument("--dsl", default=None, help="（任意）repo-map DSL 正本のパス。repo-root 配下のみ")
+    parser.add_argument("--dsl", default=None, help="（任意）DSL 正本のパス（repo-map / document-map）。repo-root 配下のみ")
+    parser.add_argument("--notation", default=None, choices=list(ALLOWED_NOTATIONS),
+                        help="プロンプト体裁（repo-map / document-map）。既定は --dsl の先頭行から自動判定（無ければ repo-map）")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"待受ポート（既定 {DEFAULT_PORT}）")
     parser.add_argument("--claude-bin", default="claude", help="claude 実行ファイル名/パス")
     parser.add_argument("--claude-model", default=None, help="（任意）claude --model に渡すモデル名（高速化用など）")
@@ -148,6 +151,20 @@ def build_config(args: argparse.Namespace) -> BridgeConfig:
         if not within_repo_root(dsl_path, repo_root):
             raise SystemExit("--dsl がリポジトリルート外を指しています（拒否）。")
 
+    # notation（プロンプト体裁）: --notation 明示があれば優先、無ければ --dsl 先頭行から自動判定。
+    notation = args.notation
+    if notation is None:
+        notation = DEFAULT_NOTATION
+        if dsl_path:
+            try:
+                with open(dsl_path, "r", encoding="utf-8") as f:
+                    for raw in f:
+                        if raw.strip():
+                            notation = detect_notation(raw)
+                            break
+            except OSError:
+                notation = DEFAULT_NOTATION
+
     allowed_models = tuple(m.strip() for m in (args.models or "").split(",") if m.strip())
     default_model = args.default_model if args.default_model in allowed_models else None
     if args.default_model and default_model is None:
@@ -171,6 +188,7 @@ def build_config(args: argparse.Namespace) -> BridgeConfig:
         default_effort=args.default_effort,
         reclaim=not args.no_reclaim,
         remote_shutdown=not args.no_remote_shutdown,
+        notation=notation,
     )
 
 

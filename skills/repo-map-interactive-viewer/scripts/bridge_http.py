@@ -88,6 +88,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
             "repoRoot": self.config.repo_root,
             "html": self.config.html,
             "dsl": self.config.dsl,
+            "notation": self.config.notation,
             "claude": bool(resolve_claude(self.config.claude_bin)),
             "permissionMode": self.config.permission_mode,
             "allowedTools": self.config.allowed_tools,
@@ -125,7 +126,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
         # DSL 正本のパスはサーバ設定（--dsl・起動時 realpath 済みの絶対パス）から注入する。
         # client は dsl パスを送れない（validate_ask_payload が固定フィールドだけに刈り込む）。
         # config.dsl が None のときは build_prompt 内の line() が「(未指定)」に吸収する。
-        prompt = build_prompt(cleaned, dsl_file=self.config.dsl)
+        # notation（repo-map / document-map）でプロンプト体裁を選ぶ（配信 HTML 側 buildPrompt と一致）。
+        prompt = build_prompt(cleaned, dsl_file=self.config.dsl, notation=self.config.notation)
         result = self._run_claude_with_session(
             prompt, model=cleaned.get("model"), effort=cleaned.get("effort")
         )

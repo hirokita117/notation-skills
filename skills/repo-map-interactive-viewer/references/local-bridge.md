@@ -17,7 +17,8 @@
 |------|------|------|------|
 | `--repo-root` | ✅ | — | 対象リポジトリのルート。`claude` の **cwd** になり、パス・ジェイルの基準にもなる。 |
 | `--html` | ✅ | — | 配信する生成済み repo-map HTML のパス。 |
-| `--dsl` | | なし | repo-map DSL 正本のパス（**repo-root 配下のみ**）。`/api/health` 表示などに使う。 |
+| `--dsl` | | なし | DSL 正本のパス（`repo-map` / `document-map`・**repo-root 配下のみ**）。`/api/health` 表示・プロンプト注入・notation 自動判定に使う。 |
+| `--notation` | | （`--dsl` から自動判定） | プロンプト体裁（`repo-map` / `document-map`）。明示が無ければ `--dsl` の先頭行で判定（`# document-map v1` → document-map、それ以外 → repo-map）。 |
 | `--port` | | `17333` | 待受ポート。 |
 | `--claude-bin` | | `claude` | `claude` 実行ファイル名/パス。 |
 | `--claude-model` | | なし | `claude --model` に渡すモデル名（プロセス全体の強制指定）。per-request の `model` が無いときのフォールバック。 |

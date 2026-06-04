@@ -4,7 +4,7 @@
 
 ---
 
-## kind ごとの箱の塗り
+## kind ごとの箱の塗り（repo-map v1）
 
 | kind | 塗り hex | 文字色 |
 |------|----------|--------|
@@ -14,6 +14,24 @@
 | file-group | `#14B8A6` | 白 |
 | external | `#9CA3AF` | 濃灰 `#111827`（コントラスト確保） |
 | datastore | `#7C3AED` | 白 |
+
+## kind ごとの箱の塗り（document-map v1）
+
+repo-map のパレット（slate/blue/cyan/teal/grey/violet）と整合させつつ、9 種を識別できるよう amber/red/emerald を足す。境界=灰（external）は repo-map と同じ意味付け。
+
+| kind | 塗り hex | 文字色 |
+|------|----------|--------|
+| document | `#1F2937` | 白 |
+| section | `#2563EB` | 白 |
+| concept | `#0EA5E9` | 白 |
+| requirement | `#14B8A6` | 白 |
+| decision | `#7C3AED` | 白 |
+| open-question | `#D97706` | 白（focus 枠 `#F59E0B` とは別色） |
+| risk | `#DC2626` | 白 |
+| actor | `#059669` | 白 |
+| external | `#9CA3AF` | 濃灰 `#111827` |
+
+実装は `scripts/theme.mjs`（repo-map=`kindFill`/`kindText`、document-map=`documentMapKindFill`/`documentMapKindText`）。どちらを使うかは `scripts/profiles.mjs` のプロファイルが持つ。共通定数（エッジ色・フォント・寸法）は両版で同じ。
 
 ## 共通定数
 
@@ -34,7 +52,7 @@ FONT_SIZE_LEGEND= 12px
 
 - 箱は `NODE_W × NODE_H`（160×48）、ラベルを中央、その下に小さく ID。
 - 文字が `NODE_W − 16px` を超えたら末尾を省略（…）。省略は文字列だけの関数なので決定的。
-- **線種で階層 / 依存を見分ける**: 実線 = 構造（contains/deploys/owns）、破線 = 依存（imports/calls/reads）。色を増やさずに 2 種を区別できる。
+- **線種で階層 / 依存を見分ける**（色を増やさずに 2 種を区別）。階層系=実線、依存系=破線。分類は版で異なる: repo-map は実線=`contains/deploys/owns`・破線=`imports/calls/reads`、document-map は実線=`contains`・破線=その他 8 関係（explains/depends-on/decides/raises/mitigates/owns/references/conflicts-with）。
 
 ## 関連
 - 決定的レイアウト（座標・帯順・寸法定数）: [layout-algorithm.md](layout-algorithm.md)

@@ -30,6 +30,9 @@ MAX_FIELD = 20_000
 
 ALLOWED_HOSTS = {"127.0.0.1", "localhost"}
 
+# 対応する notation（DSL バージョン系）。プロンプト体裁の選択に使う。
+ALLOWED_NOTATIONS = ("repo-map", "document-map")
+
 
 @dataclass
 class BridgeConfig:
@@ -43,6 +46,7 @@ class BridgeConfig:
     permission_mode: str
     timeout: float
     session_continuity: bool = True
+    notation: str = "repo-map"                 # プロンプト体裁（repo-map / document-map）。--dsl から自動判定
     allowed_models: tuple[str, ...] = ()       # UI セレクトの許可リスト（--models 由来）
     default_model: str | None = None           # UI 初期選択モデル（allowed_models のいずれか）
     default_effort: str | None = None          # UI 初期選択 effort（ALLOWED_EFFORTS のいずれか）

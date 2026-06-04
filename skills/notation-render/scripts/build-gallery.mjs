@@ -49,7 +49,7 @@ export function parseStoryMeta(id, dslText) {
   const lines = dslText.split(/\r?\n/);
 
   const firstNonBlank = lines.find((l) => l.trim() !== "") ?? "";
-  const vm = firstNonBlank.match(/^#\s*(repo-map\s+v\d+)\b/i);
+  const vm = firstNonBlank.match(/^#\s*((?:repo-map|document-map)\s+v\d+)\b/i);
   const version = vm ? vm[1].replace(/\s+/g, " ") : "unknown";
 
   const storyLine = lines.map((l) => l.match(/^#\s*story:\s*(.+?)\s*$/)).find(Boolean);
@@ -78,8 +78,11 @@ export function parseStoryMeta(id, dslText) {
   if (descLine) {
     desc = descLine[1];
   } else if (valid) {
-    const { root, depth, focus } = model.meta;
-    const parts = [`root=${root}`, `depth=${depth}`, `${model.nodes.length} nodes / ${model.edges.length} edges`];
+    // scope キーは版で異なる（repo-map=root / document-map=source）。存在する方を表示。
+    const { depth, focus } = model.meta;
+    const scopeKey = model.meta.root !== undefined ? "root" : "source";
+    const parts = [`${scopeKey}=${model.meta[scopeKey]}`, `depth=${depth}`,
+      `${model.nodes.length} nodes / ${model.edges.length} edges`];
     if (focus !== undefined) parts.push(`focus=${focus}`);
     desc = parts.join(" · ");
   } else {
@@ -176,7 +179,7 @@ export function renderIndexHtml(stories) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>repo-map DSL カタログ</title>
+<title>notation DSL カタログ</title>
 <style>
   :root { --fg:#111827; --muted:#6B7280; --border:#E5E7EB; --bg:#F9FAFB; --accent:#2563EB;
     --font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -223,8 +226,8 @@ export function renderIndexHtml(stories) {
 </head>
 <body>
 <header>
-  <h1>repo-map DSL カタログ</h1>
-  <p class="sub">repo-map v1 の代表例を「DSL 全文 / 生成 HTML」で見比べる。左で例を選び、右のタブで切り替え。</p>
+  <h1>notation DSL カタログ</h1>
+  <p class="sub">repo-map v1 / document-map v1 の代表例を「DSL 全文 / 生成 HTML」で見比べる。左で例を選び、右のタブで切り替え。</p>
 </header>
 <div class="app">
   <nav class="sidebar">

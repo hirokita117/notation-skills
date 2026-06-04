@@ -1,84 +1,17 @@
-// html_emitter — インタラクティブ Viewer（固定テンプレ ＋ 注入 SVG ＋ ドラッグ）
-//
-// output-formats.md §2 と html-viewer-contract.md の実装。参照実装
-// （repo-map-interactive-viewer/examples/repo-map.html）と同じ契約（data-*・凡例・詳細パネル・
-// Ask/Copy・bridge /api/ask・Markdown レンダラ・stopped オーバーレイ）を固定テンプレートとして再現し、
-// 変動点は埋め込み SVG だけにする（同じ DSL → 同じ HTML）。
-//
-// repo-map v1 / document-map v1 の両方を出す。版で変わるのは chrome だけ（title / 凡例 /
-// `data-*-dsl` 属性名 / buildPrompt の体裁 / kind の色）。共通部（CSS・Markdown レンダラ・ドラッグ・
-// fetch）は 1 本に保つ。repo-map の chrome は現行リテラルを逐語再現する（snapshot で担保）。
-//
-// 追加機能: ノードのドラッグ移動（view-time のみ）。掴んで動かすと接続線・ラベル・ID が追従するが、
-// 出力ファイル＝リロード時の初期レイアウトは決定的レイアウトのまま（永続化しない）。
-// buildPrompt はブリッジ側 build_prompt とバイト一致させる必要があるため、String.raw で
-// 逐語保持する（`\n` 等のエスケープを壊さない）。
-
-import { emitSvg } from "./svg_emitter.mjs";
-import { encodeAttr } from "./attrs.mjs";
-import { resolveProfile } from "./profiles.mjs";
-
-/**
- * モデル ＋ layout からインタラクティブ HTML を作る。版固有の chrome（title/凡例/属性名/prompt/色）は
- * プロファイルから解決する（未指定なら model.version から。既定は repo-map）。
- * @param {object} [options]
- * @param {string|null} [options.sourcePath]  入力 DSL の絶対パス。指定時は `<html>` に
- *   `data-<family>-dsl` 属性として埋め込み、ブラウザ内 buildPrompt が `<family> DSL file:` 行に使う。
- *   未指定（falsy）なら属性を出さない（決定性・後方互換）。
- * @param {object} [options.profile]  バージョン別プロファイル（未指定なら repoMap.version から解決）。
- * @returns {string}
- */
-export function emitHtml(repoMap, layout, options = {}) {
-  const profile = resolveProfile(options.profile, repoMap);
-  const chrome = chromeFor(profile.family);
-  const svg = emitSvg(repoMap, layout, {
-    rootAttrs: 'class="diagram"',
-    kindFill: profile.kindFill,
-    kindText: profile.kindText,
-  });
-  return [
-    "<!DOCTYPE html>",
-    options.sourcePath
-      ? `<html lang="ja" ${chrome.dslAttr}="${encodeAttr(options.sourcePath)}">`
-      : '<html lang="ja">',
-    "<head>",
-    '<meta charset="utf-8">',
-    '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    `<title>${profile.version} — interactive viewer</title>`,
-    "<!--",
-    `  ${profile.family} インタラクティブ Viewer。notation-render が DSL から決定的に生成。`,
-    "  契約は repo-map-interactive-viewer/references/html-viewer-contract.md。",
-    "  data-* はすべて DSL から決定的に導出（固定テンプレート＋固定スクリプト）。",
-    "  ノードはドラッグで移動できる（view-time のみ・初期レイアウトは不変）。",
-    "-->",
-    "<style>",
-    STYLE,
-    "</style>",
-    "</head>",
-    "<body>",
-    header(profile.version),
-    '<div class="layout">',
-    `  <section class="diagram-section" aria-label="${profile.family} diagram">`,
-    '    <div class="diagram-pane">',
-    svg.replace(/\n+$/, ""), // SVG を逐語埋め込み（ノードブロックを単体 SVG とバイト一致させる）
-    "    </div>",
-    chrome.legend,
-    "  </section>",
-    PANEL,
-    "</div>",
-    OVERLAY,
-    "<script>",
-    buildScript(chrome),
-    "</script>",
-    "</body>",
-    "</html>",
-    "",
-  ].join("\n");
-}
-
-// --- 固定 CSS（参照実装 ＋ ドラッグ用追記・版非依存） ---
-
-const STYLE = `  :root {
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>document-map v1 — interactive viewer</title>
+<!--
+  document-map インタラクティブ Viewer。notation-render が DSL から決定的に生成。
+  契約は repo-map-interactive-viewer/references/html-viewer-contract.md。
+  data-* はすべて DSL から決定的に導出（固定テンプレート＋固定スクリプト）。
+  ノードはドラッグで移動できる（view-time のみ・初期レイアウトは不変）。
+-->
+<style>
+  :root {
     --fg: #111827; --muted: #6B7280; --border: #E5E7EB; --bg: #FFFFFF;
     --accent: #2563EB; --focus: #F59E0B; --danger: #DC2626;
     --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -154,31 +87,131 @@ const STYLE = `  :root {
   /* ドラッグ用（view-time のみ・初期レイアウトは不変） */
   svg.diagram { -webkit-user-select: none; user-select: none; touch-action: none; }
   svg.diagram .node { cursor: grab; }
-  svg.diagram .node.dragging { cursor: grabbing; }`;
-
-/** ヘッダ（版で h1 だけ変わる）。 */
-function header(version) {
-  return `<header>
-  <h1>${version} — interactive viewer</h1>
+  svg.diagram .node.dragging { cursor: grabbing; }
+</style>
+</head>
+<body>
+<header>
+  <h1>document-map v1 — interactive viewer</h1>
   <div class="mode" id="mode-line">mode: 判定中…</div>
-</header>`;
-}
-
-// --- 凡例（版固有・固定マークアップ・DSL 非依存） ---
-
-const LEGEND_REPO_MAP = `    <div class="legend">
-      kind:
-      <span class="sw" style="background:#1F2937"></span>system
-      <span class="sw" style="background:#2563EB"></span>package
-      <span class="sw" style="background:#0EA5E9"></span>module
-      <span class="sw" style="background:#14B8A6"></span>file-group
-      <span class="sw" style="background:#9CA3AF"></span>external
-      <span class="sw" style="background:#7C3AED"></span>datastore
-      ／ 実線=構造（contains/deploys/owns）, 破線=依存（imports/calls/reads）
-      <br>ヒント: ノードはドラッグで移動できます（接続線が追従。リロードで初期配置に戻ります）。
-    </div>`;
-
-const LEGEND_DOCUMENT_MAP = `    <div class="legend">
+</header>
+<div class="layout">
+  <section class="diagram-section" aria-label="document-map diagram">
+    <div class="diagram-pane">
+<svg class="diagram" width="1608" height="456" viewBox="0 0 1608 456" xmlns="http://www.w3.org/2000/svg" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#4B5563"></path>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1608" height="456" fill="#FFFFFF"></rect>
+  <line class="edge" data-from="doc" data-to="goals" data-rel="contains" x1="104" y1="72" x2="104" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="doc" data-to="scope" data-rel="contains" x1="104" y1="72" x2="304" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="doc" data-to="delivery" data-rel="contains" x1="104" y1="72" x2="504" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="doc" data-to="decisions" data-rel="contains" x1="104" y1="72" x2="704" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="doc" data-to="questions" data-rel="contains" x1="104" y1="72" x2="904" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="delivery" data-to="multichannel" data-rel="explains" x1="504" y1="192" x2="104" y2="264" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="delivery" data-to="push" data-rel="references" x1="504" y1="192" x2="1504" y2="264" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="delivery" data-to="slack" data-rel="references" x1="504" y1="192" x2="1304" y2="264" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="decisions" data-to="d-push" data-rel="contains" x1="704" y1="192" x2="304" y2="264" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="decisions" data-to="d-vendor" data-rel="contains" x1="704" y1="192" x2="504" y2="264" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="questions" data-to="q-mvp" data-rel="contains" x1="904" y1="192" x2="704" y2="264" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="questions" data-to="q-sla" data-rel="contains" x1="904" y1="192" x2="904" y2="264" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="questions" data-to="q-i18n" data-rel="contains" x1="904" y1="192" x2="1104" y2="264" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="d-push" data-to="q-mvp" data-rel="decides" x1="384" y1="288" x2="624" y2="288" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="d-vendor" data-to="risk-vendor" data-rel="raises" x1="504" y1="312" x2="104" y2="384" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="q-sla" data-to="d-vendor" data-rel="depends-on" x1="984" y1="288" x2="424" y2="288" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="pm" data-to="decisions" data-rel="owns" x1="304" y1="72" x2="704" y2="144" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="eng" data-to="delivery" data-rel="owns" x1="504" y1="72" x2="504" y2="144" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <g class="node" data-node-id="doc" data-label="PRD: 通知基盤" data-kind="document" data-path="docs/prd-notifications.md" data-related-edges="doc goals contains&#10;doc scope contains&#10;doc delivery contains&#10;doc decisions contains&#10;doc questions contains" data-dsl-excerpt="doc document &quot;PRD: 通知基盤&quot; docs/prd-notifications.md&#10;doc goals contains&#10;doc scope contains&#10;doc delivery contains&#10;doc decisions contains&#10;doc questions contains" data-x="24" data-y="24" transform="translate(24,24)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#1F2937" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">PRD: 通知基盤</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">doc</text>
+  </g>
+  <g class="node" data-node-id="goals" data-label="目的とゴール" data-kind="section" data-path="#goals" data-related-edges="doc goals contains" data-dsl-excerpt="goals section 目的とゴール #goals&#10;doc goals contains" data-x="24" data-y="144" transform="translate(24,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">目的とゴール</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">goals</text>
+  </g>
+  <g class="node" data-node-id="scope" data-label="スコープ" data-kind="section" data-path="#scope" data-related-edges="doc scope contains" data-dsl-excerpt="scope section スコープ #scope&#10;doc scope contains" data-x="224" data-y="144" transform="translate(224,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">スコープ</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">scope</text>
+  </g>
+  <g class="node" data-node-id="delivery" data-label="配信チャネル" data-kind="section" data-path="#delivery" data-related-edges="doc delivery contains&#10;delivery multichannel explains&#10;delivery push references&#10;delivery slack references&#10;eng delivery owns" data-dsl-excerpt="delivery section 配信チャネル #delivery&#10;doc delivery contains&#10;delivery multichannel explains&#10;delivery push references&#10;delivery slack references&#10;eng delivery owns" data-x="424" data-y="144" transform="translate(424,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">配信チャネル</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">delivery</text>
+  </g>
+  <g class="node" data-node-id="decisions" data-label="決定事項" data-kind="section" data-path="#decisions" data-related-edges="doc decisions contains&#10;decisions d-push contains&#10;decisions d-vendor contains&#10;pm decisions owns" data-dsl-excerpt="decisions section 決定事項 #decisions&#10;doc decisions contains&#10;decisions d-push contains&#10;decisions d-vendor contains&#10;pm decisions owns" data-x="624" data-y="144" transform="translate(624,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">決定事項</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">decisions</text>
+  </g>
+  <g class="node" data-node-id="questions" data-label="未決事項" data-kind="section" data-path="#open" data-related-edges="doc questions contains&#10;questions q-mvp contains&#10;questions q-sla contains&#10;questions q-i18n contains" data-dsl-excerpt="questions section 未決事項 #open&#10;doc questions contains&#10;questions q-mvp contains&#10;questions q-sla contains&#10;questions q-i18n contains" data-x="824" data-y="144" transform="translate(824,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">未決事項</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">questions</text>
+  </g>
+  <g class="node" data-node-id="multichannel" data-label="マルチチャネル配信" data-kind="concept" data-path="" data-related-edges="delivery multichannel explains" data-dsl-excerpt="multichannel concept マルチチャネル配信&#10;delivery multichannel explains" data-x="24" data-y="264" transform="translate(24,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#0EA5E9" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">マルチチャネル配信</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">multichannel</text>
+  </g>
+  <g class="node" data-node-id="d-push" data-label="まず Push のみで MVP" data-kind="decision" data-path="" data-related-edges="decisions d-push contains&#10;d-push q-mvp decides" data-dsl-excerpt="d-push decision &quot;まず Push のみで MVP&quot;&#10;decisions d-push contains&#10;d-push q-mvp decides" data-x="224" data-y="264" transform="translate(224,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#7C3AED" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">まず Push のみで MVP</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">d-push</text>
+  </g>
+  <g class="node" data-node-id="d-vendor" data-label="配信は外部ベンダー利用" data-kind="decision" data-path="" data-related-edges="decisions d-vendor contains&#10;d-vendor risk-vendor raises&#10;q-sla d-vendor depends-on" data-dsl-excerpt="d-vendor decision 配信は外部ベンダー利用&#10;decisions d-vendor contains&#10;d-vendor risk-vendor raises&#10;q-sla d-vendor depends-on" data-x="424" data-y="264" transform="translate(424,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#7C3AED" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">配信は外部ベンダー利用</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">d-vendor</text>
+  </g>
+  <g class="node" data-node-id="q-mvp" data-label="MVP に何を含めるか" data-kind="open-question" data-path="" data-related-edges="questions q-mvp contains&#10;d-push q-mvp decides" data-dsl-excerpt="q-mvp open-question &quot;MVP に何を含めるか&quot;&#10;questions q-mvp contains&#10;d-push q-mvp decides" data-x="624" data-y="264" transform="translate(624,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#D97706" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">MVP に何を含めるか</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">q-mvp</text>
+  </g>
+  <g class="node" data-node-id="q-sla" data-label="SLA は 99.9% で足りるか" data-kind="open-question" data-path="" data-related-edges="questions q-sla contains&#10;q-sla d-vendor depends-on" data-dsl-excerpt="q-sla open-question &quot;SLA は 99.9% で足りるか&quot;&#10;questions q-sla contains&#10;q-sla d-vendor depends-on" data-x="824" data-y="264" transform="translate(824,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#D97706" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">SLA は 99.9% で足りる…</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">q-sla</text>
+  </g>
+  <g class="node" data-node-id="q-i18n" data-label="多言語対応はいつやるか" data-kind="open-question" data-path="" data-related-edges="questions q-i18n contains" data-dsl-excerpt="q-i18n open-question 多言語対応はいつやるか&#10;questions q-i18n contains" data-x="1024" data-y="264" transform="translate(1024,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#D97706" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">多言語対応はいつやるか</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">q-i18n</text>
+  </g>
+  <g class="node" data-node-id="risk-vendor" data-label="ベンダーロックイン" data-kind="risk" data-path="" data-related-edges="d-vendor risk-vendor raises" data-dsl-excerpt="risk-vendor risk ベンダーロックイン&#10;d-vendor risk-vendor raises" data-x="24" data-y="384" transform="translate(24,384)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#DC2626" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">ベンダーロックイン</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">risk-vendor</text>
+  </g>
+  <g class="node" data-node-id="slack" data-label="Slack" data-kind="external" data-path="" data-related-edges="delivery slack references" data-dsl-excerpt="slack external Slack&#10;delivery slack references" data-x="1224" data-y="264" transform="translate(1224,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#9CA3AF" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#111827" font-size="13">Slack</text>
+    <text x="80" y="38" text-anchor="middle" fill="#111827" font-size="10" opacity="0.8">slack</text>
+  </g>
+  <g class="node" data-node-id="push" data-label="Push (APNs/FCM)" data-kind="external" data-path="" data-related-edges="delivery push references" data-dsl-excerpt="push external &quot;Push (APNs/FCM)&quot;&#10;delivery push references" data-x="1424" data-y="264" transform="translate(1424,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#9CA3AF" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#111827" font-size="13">Push (APNs/FCM)</text>
+    <text x="80" y="38" text-anchor="middle" fill="#111827" font-size="10" opacity="0.8">push</text>
+  </g>
+  <g class="node" data-node-id="pm" data-label="PM" data-kind="actor" data-path="" data-related-edges="pm decisions owns" data-dsl-excerpt="pm actor PM&#10;pm decisions owns" data-x="224" data-y="24" transform="translate(224,24)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#059669" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">PM</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">pm</text>
+  </g>
+  <g class="node" data-node-id="eng" data-label="Eng リード" data-kind="actor" data-path="" data-related-edges="eng delivery owns" data-dsl-excerpt="eng actor &quot;Eng リード&quot;&#10;eng delivery owns" data-x="424" data-y="24" transform="translate(424,24)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#059669" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Eng リード</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">eng</text>
+  </g>
+  <rect class="focus-frame" data-focus-for="questions" x="821" y="141" width="166" height="54" rx="10" fill="none" stroke="#F59E0B" stroke-width="3"></rect>
+</svg>
+    </div>
+    <div class="legend">
       kind:
       <span class="sw" style="background:#1F2937"></span>document
       <span class="sw" style="background:#2563EB"></span>section
@@ -191,9 +224,9 @@ const LEGEND_DOCUMENT_MAP = `    <div class="legend">
       <span class="sw" style="background:#9CA3AF"></span>external
       ／ 実線=構成（contains）, 破線=関連（explains/depends-on/decides/raises/mitigates/owns/references/conflicts-with）
       <br>ヒント: ノードはドラッグで移動できます（接続線が追従。リロードで初期配置に戻ります）。
-    </div>`;
-
-const PANEL = `  <aside class="panel" id="panel">
+    </div>
+  </section>
+  <aside class="panel" id="panel">
     <h2>選択中のノード</h2>
     <div id="node-empty" class="empty">図のノードをクリックすると、ここに詳細が表示されます。</div>
     <div id="node-detail" style="display:none">
@@ -228,104 +261,16 @@ const PANEL = `  <aside class="panel" id="panel">
       <div class="answer" id="answer" style="display:none"></div>
       <textarea id="prompt-fallback" readonly></textarea>
     </div>
-  </aside>`;
-
-const OVERLAY = `<div id="stopped-overlay">ブリッジを停止しました。このタブは閉じてかまいません。</div>`;
-
-// --- 版固有の prompt スクリプト断片（JS↔Python build_prompt とバイト一致させる） ---
-
-// repo-map: DSL_FILE 宣言ブロック（参照実装の逐語）。
-const DSL_DECL_REPO_MAP = String.raw`  // repo-map DSL 正本ファイルの絶対パス（生成時に <html data-repo-map-dsl> へ埋め込まれる）。
-  // copy/file:// モードの buildPrompt が「repo-map DSL file:」行に使う。未埋め込みなら空＝(未指定)。
-  var DSL_FILE = document.documentElement.getAttribute("data-repo-map-dsl") || "";`;
-
-// repo-map: buildPrompt（参照実装の逐語。bridge_prompt.py build_prompt("repo-map") と一致）。
-const BUILD_PROMPT_REPO_MAP = String.raw`  function buildPrompt(p, question) {
-    function line(v) { v = (v || "").trim(); return v ? v : "(未指定)"; }
-    function block(v) { v = (v || "").trim(); return v ? v : "(なし)"; }
-    return (
-      "あなたはローカルリポジトリ理解を支援するアシスタントです。\n" +
-      "対象リポジトリは現在のworking directoryです。\n\n" +
-      "ユーザーは repo-map HTML Viewer 上で次のノードを見ています。\n\n" +
-      "node id: " + line(p.nodeId) + "\n" +
-      "label: " + line(p.label) + "\n" +
-      "kind: " + line(p.kind) + "\n" +
-      "path: " + line(p.path) + "\n" +
-      "related edges:\n" + block(p.relatedEdges) + "\n\n" +
-      "repo-map DSL file: " + line(DSL_FILE) + "\n" +
-      "DSL excerpt:\n" + block(p.dslExcerpt) + "\n\n" +
-      "ユーザーの質問:\n" + (question || "").trim() + "\n\n" +
-      "回答方針:\n" +
-      "- まず repo-map DSL 上の意味を説明してください。\n" +
-      "- repo-map DSL file が指定されているときは、まずそのファイルを Read して excerpt と整合を確認してください。\n" +
-      "- DSL ファイルパスが未指定のときは excerpt を正としてください。\n" +
-      "- 必要なら Read / Glob / Grep で実ファイルを確認してください。\n" +
-      "- 推測と確認済み事実を分けてください。\n" +
-      "- ファイル編集、生成、削除はしないでください。\n" +
-      "- 最後に「次に読むとよいファイル」を挙げてください。\n" +
-      "- 回答は日本語を基本にしてください。\n"
-    );
-  }`;
-
-// document-map: DSL_FILE 宣言ブロック。
-const DSL_DECL_DOCUMENT_MAP = String.raw`  // document-map DSL 正本ファイルの絶対パス（生成時に <html data-document-map-dsl> へ埋め込まれる）。
-  // copy/file:// モードの buildPrompt が「document-map DSL file:」行に使う。未埋め込みなら空＝(未指定)。
-  var DSL_FILE = document.documentElement.getAttribute("data-document-map-dsl") || "";`;
-
-// document-map: buildPrompt（bridge_prompt.py build_prompt("document-map") と一致させる）。
-const BUILD_PROMPT_DOCUMENT_MAP = String.raw`  function buildPrompt(p, question) {
-    function line(v) { v = (v || "").trim(); return v ? v : "(未指定)"; }
-    function block(v) { v = (v || "").trim(); return v ? v : "(なし)"; }
-    return (
-      "あなたはローカルドキュメント理解を支援するアシスタントです。\n" +
-      "対象ドキュメントは現在のworking directory配下にあります。\n\n" +
-      "ユーザーは document-map HTML Viewer 上で次のノードを見ています。\n\n" +
-      "node id: " + line(p.nodeId) + "\n" +
-      "label: " + line(p.label) + "\n" +
-      "kind: " + line(p.kind) + "\n" +
-      "ref: " + line(p.path) + "\n" +
-      "related edges:\n" + block(p.relatedEdges) + "\n\n" +
-      "document-map DSL file: " + line(DSL_FILE) + "\n" +
-      "DSL excerpt:\n" + block(p.dslExcerpt) + "\n\n" +
-      "ユーザーの質問:\n" + (question || "").trim() + "\n\n" +
-      "回答方針:\n" +
-      "- まず document-map DSL 上の意味（構造・論点・関係）を説明してください。\n" +
-      "- document-map DSL file が指定されているときは、まずそのファイルを Read して excerpt と整合を確認してください。\n" +
-      "- DSL ファイルパスが未指定のときは excerpt を正としてください。\n" +
-      "- 必要なら Read / Glob / Grep で元ドキュメントを確認してください。\n" +
-      "- 推測と確認済み事実を分けてください。\n" +
-      "- ファイル編集、生成、削除はしないでください。\n" +
-      "- 最後に「次に読むとよい箇所」を挙げてください。\n" +
-      "- 回答は日本語を基本にしてください。\n"
-    );
-  }`;
-
-const REPO_MAP_CHROME = Object.freeze({
-  legend: LEGEND_REPO_MAP,
-  dslAttr: "data-repo-map-dsl",
-  dslFileDecl: DSL_DECL_REPO_MAP,
-  buildPromptFn: BUILD_PROMPT_REPO_MAP,
-});
-
-const DOCUMENT_MAP_CHROME = Object.freeze({
-  legend: LEGEND_DOCUMENT_MAP,
-  dslAttr: "data-document-map-dsl",
-  dslFileDecl: DSL_DECL_DOCUMENT_MAP,
-  buildPromptFn: BUILD_PROMPT_DOCUMENT_MAP,
-});
-
-function chromeFor(family) {
-  return family === "document-map" ? DOCUMENT_MAP_CHROME : REPO_MAP_CHROME;
-}
-
-// --- 固定スクリプト（参照実装の逐語コピー ＋ ドラッグ配線）。版固有は 2 点だけ補間 ---
-// String.raw でエスケープを保持。`${chrome.dslFileDecl}` と `${chrome.buildPromptFn}` 以外は版非依存。
-
-function buildScript(chrome) {
-  return String.raw`(function () {
+  </aside>
+</div>
+<div id="stopped-overlay">ブリッジを停止しました。このタブは閉じてかまいません。</div>
+<script>
+(function () {
   "use strict";
 
-${chrome.dslFileDecl}
+  // document-map DSL 正本ファイルの絶対パス（生成時に <html data-document-map-dsl> へ埋め込まれる）。
+  // copy/file:// モードの buildPrompt が「document-map DSL file:」行に使う。未埋め込みなら空＝(未指定)。
+  var DSL_FILE = document.documentElement.getAttribute("data-document-map-dsl") || "";
 
   // --- モード判定: 127.0.0.1 配信なら bridge、それ以外（file:// 等）は copy フォールバック ---
   var isBridge = (location.protocol === "http:" || location.protocol === "https:") &&
@@ -388,7 +333,32 @@ ${chrome.dslFileDecl}
     };
   }
 
-${chrome.buildPromptFn}
+  function buildPrompt(p, question) {
+    function line(v) { v = (v || "").trim(); return v ? v : "(未指定)"; }
+    function block(v) { v = (v || "").trim(); return v ? v : "(なし)"; }
+    return (
+      "あなたはローカルドキュメント理解を支援するアシスタントです。\n" +
+      "対象ドキュメントは現在のworking directory配下にあります。\n\n" +
+      "ユーザーは document-map HTML Viewer 上で次のノードを見ています。\n\n" +
+      "node id: " + line(p.nodeId) + "\n" +
+      "label: " + line(p.label) + "\n" +
+      "kind: " + line(p.kind) + "\n" +
+      "ref: " + line(p.path) + "\n" +
+      "related edges:\n" + block(p.relatedEdges) + "\n\n" +
+      "document-map DSL file: " + line(DSL_FILE) + "\n" +
+      "DSL excerpt:\n" + block(p.dslExcerpt) + "\n\n" +
+      "ユーザーの質問:\n" + (question || "").trim() + "\n\n" +
+      "回答方針:\n" +
+      "- まず document-map DSL 上の意味（構造・論点・関係）を説明してください。\n" +
+      "- document-map DSL file が指定されているときは、まずそのファイルを Read して excerpt と整合を確認してください。\n" +
+      "- DSL ファイルパスが未指定のときは excerpt を正としてください。\n" +
+      "- 必要なら Read / Glob / Grep で元ドキュメントを確認してください。\n" +
+      "- 推測と確認済み事実を分けてください。\n" +
+      "- ファイル編集、生成、削除はしないでください。\n" +
+      "- 最後に「次に読むとよい箇所」を挙げてください。\n" +
+      "- 回答は日本語を基本にしてください。\n"
+    );
+  }
 
   // 自己完結 Markdown レンダラ（CDN/外部ライブラリ不使用・決定的・XSS 安全）。
   function renderMarkdown(src) {
@@ -785,5 +755,7 @@ ${chrome.buildPromptFn}
   } else {
     window.addEventListener("resize", function () { syncCanvasToPane(); });
   }
-})();`;
-}
+})();
+</script>
+</body>
+</html>

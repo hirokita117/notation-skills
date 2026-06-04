@@ -1,13 +1,13 @@
 {
   "name": "notation-skills",
   "owner": { "name": "hirokita117" },
-  "description": "Notation-first design skills: repo-map v1 DSL generation, deterministic rendering, and shared core principles.",
+  "description": "Notation-first design skills: repo-map v1 / document-map v1 DSL generation, deterministic rendering, and shared core principles.",
   "plugins": [
     {
       "name": "notation-skills",
       "source": "./",
-      "description": "巨大リポジトリを repo-map v1 DSL（正本）に落として決定的に図化し、生成済み HTML からローカル Claude Code に質問できる Skill 統合パック。",
-      "version": "2.0.2"
+      "description": "リポジトリやドキュメントを repo-map v1 / document-map v1 DSL（正本）に落として決定的に図化し、生成済み HTML からローカル Claude Code に質問できる Skill 統合パック。",
+      "version": "2.1.0"
     }
   ]
 }

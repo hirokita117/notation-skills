@@ -131,6 +131,51 @@ class PromptTests(unittest.TestCase):
         )
 
 
+class DocumentMapPromptTests(unittest.TestCase):
+    """document-map notation のプロンプト体裁（HTML 側 buildPrompt と一致させる）。"""
+
+    def test_detect_notation(self):
+        self.assertEqual(bridge.detect_notation("# document-map v1"), "document-map")
+        self.assertEqual(bridge.detect_notation("  # document-map v1  "), "document-map")
+        self.assertEqual(bridge.detect_notation("# repo-map v1"), "repo-map")
+        self.assertEqual(bridge.detect_notation("garbage"), "repo-map")
+        self.assertEqual(bridge.detect_notation(None), "repo-map")
+
+    def test_document_map_prompt_uses_document_framing(self):
+        payload = {
+            "question": "この決定は何に依存しますか？",
+            "nodeId": "d-push",
+            "label": "まず Push のみで MVP",
+            "kind": "decision",
+            "path": "#decisions",
+            "relatedEdges": "decisions d-push contains",
+            "dslExcerpt": 'd-push decision "まず Push のみで MVP"',
+        }
+        prompt = bridge.build_prompt(payload, dsl_file="/repo/docs/prd.dsl", notation="document-map")
+        for needle in (
+            "あなたはローカルドキュメント理解を支援するアシスタントです。",
+            "ユーザーは document-map HTML Viewer 上で次のノードを見ています。",
+            "kind: decision",
+            "ref: #decisions",  # document-map は path ではなく ref
+            "document-map DSL file: /repo/docs/prd.dsl\nDSL excerpt:\n",
+            "- まず document-map DSL 上の意味（構造・論点・関係）を説明してください。",
+            "- 必要なら Read / Glob / Grep で元ドキュメントを確認してください。",
+            "- 最後に「次に読むとよい箇所」を挙げてください。",
+        ):
+            self.assertIn(needle, prompt)
+        # repo-map 専用の体裁は混ざらない
+        self.assertNotIn("対象リポジトリ", prompt)
+        self.assertNotIn("repo-map DSL file:", prompt)
+        self.assertNotIn("path: #decisions", prompt)
+
+    def test_repo_map_default_is_unchanged(self):
+        # notation 省略時は従来どおり repo-map 体裁
+        prompt = bridge.build_prompt({"question": "q", "path": "apps/web"})
+        self.assertIn("対象リポジトリは現在のworking directoryです。", prompt)
+        self.assertIn("path: apps/web", prompt)
+        self.assertNotIn("document-map", prompt)
+
+
 class ClaudeArgvTests(unittest.TestCase):
     def test_argv_shape_is_safe(self):
         argv = bridge.build_claude_argv(

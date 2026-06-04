@@ -20,6 +20,7 @@ import { validate } from "./validator.mjs";
 import { computeLayout } from "./layout.mjs";
 import { emitHtml } from "./html_emitter.mjs";
 import { emitMermaid } from "./mermaid_emitter.mjs";
+import { resolveProfile } from "./profiles.mjs";
 import { sortDiagnostics, formatDiagnostics, hasError } from "./diagnostics.mjs";
 
 // テスト・他スクリプトからの利用向けに再エクスポート（facade）。
@@ -44,26 +45,30 @@ const FORMATS = new Set(["html", "json", "mermaid"]);
  *   ok=false（error あり）なら output は空文字。diagnostics は警告も含む（描画時も報告する）。
  */
 export function render(text, format = "html", sourcePath = null) {
-  const { repoMap, diagnostics: parseDiags, info, fatal } = parse(text);
-  const all = sortDiagnostics(fatal ? parseDiags : parseDiags.concat(validate(repoMap, info)));
+  const { repoMap, profile, diagnostics: parseDiags, info, fatal } = parse(text);
+  const all = sortDiagnostics(fatal ? parseDiags : parseDiags.concat(validate(repoMap, info, profile)));
 
   if (hasError(all)) return { ok: false, output: "", diagnostics: all };
 
   let output;
   if (format === "json") {
-    output = toJson(repoMap);
+    output = toJson(repoMap, profile);
   } else if (format === "mermaid") {
-    output = emitMermaid(repoMap);
+    output = emitMermaid(repoMap, profile);
   } else {
-    const layout = computeLayout(repoMap);
-    output = emitHtml(repoMap, layout, { sourcePath });
+    const layout = computeLayout(repoMap, profile);
+    output = emitHtml(repoMap, layout, { sourcePath, profile });
   }
   return { ok: true, output, diagnostics: all };
 }
 
-/** 内部モデル（grammar.md §4）を決定的 JSON（2 スペース）にする。Map は挿入順で配列化。 */
-export function toJson(repoMap) {
-  const meta = { root: repoMap.meta.root, depth: repoMap.meta.depth };
+/** 内部モデル（grammar.md §4）を決定的 JSON（2 スペース）にする。Map は挿入順で配列化。
+ *  meta の scope キー名（repo-map=root / document-map=source）はプロファイル由来。 */
+export function toJson(repoMap, profile) {
+  const p = resolveProfile(profile, repoMap);
+  const meta = {};
+  meta[p.scopeKey] = repoMap.meta[p.scopeKey];
+  meta.depth = repoMap.meta.depth;
   if (repoMap.meta.focus !== undefined) meta.focus = repoMap.meta.focus;
   meta.generated = repoMap.meta.generated;
 

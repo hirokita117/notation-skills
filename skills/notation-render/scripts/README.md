@@ -1,11 +1,13 @@
-# notation-render scripts — 決定的レンダラー（`repo-map v1` DSL → HTML / JSON）
+# notation-render scripts — 決定的レンダラー（`repo-map v1` / `document-map v1` DSL → HTML / JSON）
 
-`repo-map v1` DSL **テキストだけ**を入力に、`parse → validate → layout → emit` をコードで機械的に実行する
-実行可能レンダラー。**同じ DSL からは毎回同じ出力**（乱数・時刻・実行環境差・LLM 判断に依存しない）。
-リポジトリを再走査せず、入力は DSL テキストのみ。
+`repo-map v1` / `document-map v1` DSL **テキストだけ**を入力に、`parse → validate → layout → emit` をコードで
+機械的に実行する実行可能レンダラー。先頭のバージョン行で対応**プロファイル**（`profiles.mjs`）を選び、1 本の
+パイプラインに通す（版差は列挙・色・scope メタキー・depth×kind だけ。行文法・座標・SVG 幾何は共通）。
+**同じ DSL からは毎回同じ出力**（乱数・時刻・実行環境差・LLM 判断に依存しない）。元データを再走査せず、入力は DSL テキストのみ。
 
 > このスクリプトは仕様の**実装**であり、正本は次の `.md`：
-> 文法・列挙・検証 = [`repo-map-notation/references/grammar.md`](../../repo-map-notation/references/grammar.md)、
+> 文法・列挙・検証 = [`repo-map-notation/references/grammar.md`](../../repo-map-notation/references/grammar.md)
+> / [`document-map-notation/references/grammar.md`](../../document-map-notation/references/grammar.md)、
 > レイアウト = [`../references/layout-algorithm.md`](../references/layout-algorithm.md)、
 > テーマ = [`../references/theme.md`](../references/theme.md)、
 > 出力形式 = [`../references/output-formats.md`](../references/output-formats.md)、
@@ -50,7 +52,8 @@ cat input.repo-map | node render_repo_map.mjs - --format json
 
 | ファイル | 責務 |
 |----------|------|
-| `model.mjs` | 内部モデルの型・閉じた列挙（kind/relation）・補助定数（葉・依存ゼロ） |
+| `model.mjs` | 内部モデルの型・repo-map の閉じた列挙（kind/relation）・共有補助定数（id 文字集合・depth 値・`makeModel`） |
+| `profiles.mjs` | バージョン別プロファイル（repo-map / document-map）と先頭行→プロファイル選択（`selectProfile`）。版差（列挙・分類・色・scope キー・depth×kind・mermaid 形）を集約 |
 | `diagnostics.mjs` | 診断の生成・正準書式・決定的ソート（grammar.md §7.1） |
 | `parser.mjs` | 字句分類・セクション状態機械・§3.5 ラベル/パス・引用走査 → `RepoMap` |
 | `validator.mjs` | §7 の意味検査（参照整合・必須キー・規模上限・警告） |
