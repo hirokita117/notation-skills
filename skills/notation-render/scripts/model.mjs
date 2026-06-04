@@ -69,15 +69,29 @@ export const VERSION_HEADER = "# repo-map v1";
 // --- コンストラクタ ---
 
 /**
- * 空の RepoMap を作る。nodes は挿入順（=ソース順）を保つ Map、edges はソース順の配列、
- * layout は @layout が無ければ空 Map。座標・色は持たない（layout/emit が後で算出する）。
+ * 空のモデルを作る（バージョン非依存）。meta の scope キー名（repo-map=`root` /
+ * document-map=`source`）だけがバージョンで異なるので引数で受ける。それ以外
+ * （depth / focus / generated）は共通。nodes は挿入順（=ソース順）を保つ Map、
+ * edges はソース順の配列、layout は @layout が無ければ空 Map。座標・色は持たない。
+ * @param {string} version  正準バージョン文字列（例 "repo-map v1"）
+ * @param {string} scopeKey meta の scope キー名（例 "root" / "source"）
  */
-export function makeRepoMap() {
+export function makeModel(version, scopeKey) {
+  const meta = {};
+  meta[scopeKey] = undefined;
+  meta.depth = undefined;
+  meta.focus = undefined;
+  meta.generated = undefined;
   return {
-    version: VERSION,
-    meta: { root: undefined, depth: undefined, focus: undefined, generated: undefined },
+    version,
+    meta, // { <scopeKey>, depth, focus, generated }
     nodes: new Map(), // id -> { id, kind, label, path? }
     edges: [], // [{ index, from, to, relation }]
     layout: new Map(), // id -> { id, rank?, group? }
   };
+}
+
+/** 空の RepoMap を作る（後方互換: makeModel の repo-map 既定）。 */
+export function makeRepoMap() {
+  return makeModel(VERSION, "root");
 }

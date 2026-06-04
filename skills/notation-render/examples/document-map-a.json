@@ -1,0 +1,213 @@
+{
+  "version": "document-map v1",
+  "meta": {
+    "source": "docs/prd-notifications.md",
+    "depth": 1,
+    "focus": "questions",
+    "generated": "2026-06-04T09:00:00Z"
+  },
+  "nodes": [
+    {
+      "id": "doc",
+      "kind": "document",
+      "label": "PRD: 通知基盤",
+      "path": "docs/prd-notifications.md"
+    },
+    {
+      "id": "goals",
+      "kind": "section",
+      "label": "目的とゴール",
+      "path": "#goals"
+    },
+    {
+      "id": "scope",
+      "kind": "section",
+      "label": "スコープ",
+      "path": "#scope"
+    },
+    {
+      "id": "delivery",
+      "kind": "section",
+      "label": "配信チャネル",
+      "path": "#delivery"
+    },
+    {
+      "id": "decisions",
+      "kind": "section",
+      "label": "決定事項",
+      "path": "#decisions"
+    },
+    {
+      "id": "questions",
+      "kind": "section",
+      "label": "未決事項",
+      "path": "#open"
+    },
+    {
+      "id": "multichannel",
+      "kind": "concept",
+      "label": "マルチチャネル配信"
+    },
+    {
+      "id": "d-push",
+      "kind": "decision",
+      "label": "まず Push のみで MVP"
+    },
+    {
+      "id": "d-vendor",
+      "kind": "decision",
+      "label": "配信は外部ベンダー利用"
+    },
+    {
+      "id": "q-mvp",
+      "kind": "open-question",
+      "label": "MVP に何を含めるか"
+    },
+    {
+      "id": "q-sla",
+      "kind": "open-question",
+      "label": "SLA は 99.9% で足りるか"
+    },
+    {
+      "id": "q-i18n",
+      "kind": "open-question",
+      "label": "多言語対応はいつやるか"
+    },
+    {
+      "id": "risk-vendor",
+      "kind": "risk",
+      "label": "ベンダーロックイン"
+    },
+    {
+      "id": "slack",
+      "kind": "external",
+      "label": "Slack"
+    },
+    {
+      "id": "push",
+      "kind": "external",
+      "label": "Push (APNs/FCM)"
+    },
+    {
+      "id": "pm",
+      "kind": "actor",
+      "label": "PM"
+    },
+    {
+      "id": "eng",
+      "kind": "actor",
+      "label": "Eng リード"
+    }
+  ],
+  "edges": [
+    {
+      "index": 0,
+      "from": "doc",
+      "to": "goals",
+      "relation": "contains"
+    },
+    {
+      "index": 1,
+      "from": "doc",
+      "to": "scope",
+      "relation": "contains"
+    },
+    {
+      "index": 2,
+      "from": "doc",
+      "to": "delivery",
+      "relation": "contains"
+    },
+    {
+      "index": 3,
+      "from": "doc",
+      "to": "decisions",
+      "relation": "contains"
+    },
+    {
+      "index": 4,
+      "from": "doc",
+      "to": "questions",
+      "relation": "contains"
+    },
+    {
+      "index": 5,
+      "from": "delivery",
+      "to": "multichannel",
+      "relation": "explains"
+    },
+    {
+      "index": 6,
+      "from": "delivery",
+      "to": "push",
+      "relation": "references"
+    },
+    {
+      "index": 7,
+      "from": "delivery",
+      "to": "slack",
+      "relation": "references"
+    },
+    {
+      "index": 8,
+      "from": "decisions",
+      "to": "d-push",
+      "relation": "contains"
+    },
+    {
+      "index": 9,
+      "from": "decisions",
+      "to": "d-vendor",
+      "relation": "contains"
+    },
+    {
+      "index": 10,
+      "from": "questions",
+      "to": "q-mvp",
+      "relation": "contains"
+    },
+    {
+      "index": 11,
+      "from": "questions",
+      "to": "q-sla",
+      "relation": "contains"
+    },
+    {
+      "index": 12,
+      "from": "questions",
+      "to": "q-i18n",
+      "relation": "contains"
+    },
+    {
+      "index": 13,
+      "from": "d-push",
+      "to": "q-mvp",
+      "relation": "decides"
+    },
+    {
+      "index": 14,
+      "from": "d-vendor",
+      "to": "risk-vendor",
+      "relation": "raises"
+    },
+    {
+      "index": 15,
+      "from": "q-sla",
+      "to": "d-vendor",
+      "relation": "depends-on"
+    },
+    {
+      "index": 16,
+      "from": "pm",
+      "to": "decisions",
+      "relation": "owns"
+    },
+    {
+      "index": 17,
+      "from": "eng",
+      "to": "delivery",
+      "relation": "owns"
+    }
+  ],
+  "layout": []
+}

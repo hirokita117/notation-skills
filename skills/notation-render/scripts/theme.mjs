@@ -36,6 +36,38 @@ const KIND_TEXT = Object.freeze({
 export const kindFill = (kind) => KIND_FILL[kind] ?? "#9CA3AF";
 export const kindText = (kind) => KIND_TEXT[kind] ?? "#111827";
 
+// --- document-map v1 の kind ごとの塗り・文字色（theme.md「document-map の箱の塗り」） ---
+//
+// repo-map のパレット（slate/blue/cyan/teal/grey/violet）と整合させつつ、9 種を識別できるよう
+// amber/red/emerald を足す。境界=灰（external）は repo-map と同じ意味付け。
+
+const DM_KIND_FILL = Object.freeze({
+  document: "#1F2937",
+  section: "#2563EB",
+  concept: "#0EA5E9",
+  requirement: "#14B8A6",
+  decision: "#7C3AED",
+  "open-question": "#D97706", // focus 枠 #F59E0B とは別色
+  risk: "#DC2626",
+  actor: "#059669",
+  external: "#9CA3AF",
+});
+
+const DM_KIND_TEXT = Object.freeze({
+  document: "#FFFFFF",
+  section: "#FFFFFF",
+  concept: "#FFFFFF",
+  requirement: "#FFFFFF",
+  decision: "#FFFFFF",
+  "open-question": "#FFFFFF",
+  risk: "#FFFFFF",
+  actor: "#FFFFFF",
+  external: "#111827", // 境界の灰には濃灰文字（コントラスト確保）
+});
+
+export const documentMapKindFill = (kind) => DM_KIND_FILL[kind] ?? "#9CA3AF";
+export const documentMapKindText = (kind) => DM_KIND_TEXT[kind] ?? "#111827";
+
 // --- 共通テーマ定数（theme.md） ---
 
 export const THEME = Object.freeze({

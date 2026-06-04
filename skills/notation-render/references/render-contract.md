@@ -1,15 +1,16 @@
 # render-contract — 入力契約とパイプライン
 
-描画側が「何を受け取り、何を受け取らないか」「どう処理するか」を定める。文法・内部モデル・検証の実体は [repo-map-notation/references/grammar.md](../../repo-map-notation/references/grammar.md) が**正本**。ここはそれを描画の文脈で参照し、再定義しない。
+描画側が「何を受け取り、何を受け取らないか」「どう処理するか」を定める。文法・内部モデル・検証の実体は各 DSL の grammar.md（[repo-map](../../repo-map-notation/references/grammar.md) / [document-map](../../document-map-notation/references/grammar.md)）が**正本**。ここはそれを描画の文脈で参照し、再定義しない。
 
 ---
 
 ## 受け付ける入力
 
-- **notation の DSL テキストのみ。** 現時点で受理するのは、先頭行が `# repo-map v1` のテキスト 1 つ。
-- **バージョンで分岐する。** 先頭のバージョン行を見て対応を選ぶ。
-  - `# repo-map v1` → この契約で処理。
-  - それ以外（`v2` 等の未知バージョン、バージョン行欠如） → **描かない**。`E-BADVERSION` / `E-NOVERSION` 相当を報告し、対応バージョンの DSL を求める。将来 v2 を足すときは、この分岐に v2 用の経路を増やす（バージョンをまたいで推測描画しない）。
+- **notation の DSL テキストのみ。** 受理するのは、先頭行が `# repo-map v1` または `# document-map v1` のテキスト 1 つ。
+- **バージョンで分岐する（`scripts/profiles.mjs`）。** 先頭のバージョン行を見て対応**プロファイル**を選び、1 本のパイプラインに通す。版で変わるのは列挙（kind/relation）・階層/依存の分類・テーマ色・scope メタキー名（repo-map=`root` / document-map=`source`）・depth×kind だけで、行文法・座標計算・SVG 幾何は共通。
+  - `# repo-map v1` → repo-map プロファイル。
+  - `# document-map v1` → document-map プロファイル。
+  - それ以外（`v2` 等の未知バージョン、バージョン行欠如） → **描かない**。`E-BADVERSION` / `E-NOVERSION` を報告し、対応バージョンの DSL を求める。将来バージョンを足すときは、この分岐にプロファイルを増やす（バージョンをまたいで推測描画しない）。
 
 ## 受け付けない入力（描画の材料にしないもの）
 
@@ -66,7 +67,8 @@ RepoMap {
 - 唯一、決定性の対象外なのは Mermaid 出力（レイアウトを Mermaid 側に委ねるため）。HTML が決定的な正典であり、Mermaid は便宜的な派生にすぎない（[output-formats.md](output-formats.md)）。
 
 ## 関連
-- 文法・内部モデル・検証（正本）: [repo-map-notation/references/grammar.md](../../repo-map-notation/references/grammar.md)
+- 文法・内部モデル・検証（正本）: [repo-map grammar.md](../../repo-map-notation/references/grammar.md) / [document-map grammar.md](../../document-map-notation/references/grammar.md)
+- バージョン別プロファイル（列挙・色・scope キー・depth×kind の切替）: [`../scripts/profiles.mjs`](../scripts/profiles.mjs)
 - レイアウト: [layout-algorithm.md](layout-algorithm.md)
 - テーマ（色・フォント）: [theme.md](theme.md)
 - 出力形式: [output-formats.md](output-formats.md)

@@ -28,8 +28,13 @@ description: >
 - ブリッジを起動できない／`file://` で開いた場合は、**プロンプトコピー方式**にフォールバックする。
 
 この Skill は **描画そのものを担当しない**。描画は [`notation-render`](../notation-render/SKILL.md)、
-DSL 生成は [`repo-map-notation`](../repo-map-notation/SKILL.md) の責務。ここは「生成済み HTML を
+DSL 生成は [`repo-map-notation`](../repo-map-notation/SKILL.md) / [`document-map-notation`](../document-map-notation/SKILL.md) の責務。ここは「生成済み HTML を
 使った理解補助・対話ビューア」だけを担う。
+
+> **repo-map / document-map 両対応。** `notation-render` が出すインタラクティブ HTML は、リポジトリ地図
+> （`repo-map v1`）でもドキュメント地図（`document-map v1`）でも契約が同じなので、同じブリッジで配信・対話できる。
+> プロンプト体裁（「リポジトリ」/「ドキュメント」）は **`--dsl` の先頭行から自動判定**する（明示する場合は
+> `--notation repo-map|document-map`）。Skill 名は歴史的経緯で `repo-map-` 接頭辞のまま。
 
 ## 大原則（必ず守る）
 

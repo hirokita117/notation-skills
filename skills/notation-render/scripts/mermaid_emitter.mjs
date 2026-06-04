@@ -1,21 +1,12 @@
-// mermaid_emitter — repo-map v1 → Mermaid `graph TD`（任意・正本にしない）
+// mermaid_emitter — notation DSL → Mermaid `graph TD`（任意・正本にしない）
 //
 // output-formats.md §3 の実装。Mermaid はレイアウトを自前で行うため幾何は決定的でなく、あくまで便宜的な派生。
 // 決定的な正典は SVG。ここは「ノード宣言（ソース順）＋エッジ（index 順）」の機械変換のみ。
+// kind ごとの形・階層/依存の区別はプロファイル由来（未指定なら model.version から解決）。
 
-import { isHierarchy } from "./model.mjs";
+import { resolveProfile } from "./profiles.mjs";
 
-// kind ごとの Mermaid 形（前後の囲み）
-const SHAPE = {
-  system: ["[[", "]]"],
-  package: ["[", "]"],
-  module: ["(", ")"],
-  "file-group": ["([", "])"],
-  external: ["{{", "}}"],
-  datastore: ["[(", ")]"],
-};
-
-/** repo-map の id を Mermaid id にする（`.`/`-` を `_` に）。固定写像。 */
+/** notation の id を Mermaid id にする（`.`/`-` を `_` に）。固定写像。 */
 function mermaidId(id) {
   return id.replace(/[.-]/g, "_");
 }
@@ -25,18 +16,19 @@ function mermaidLabel(label) {
   return '"' + String(label).replace(/"/g, "'") + '"';
 }
 
-export function emitMermaid(repoMap) {
+export function emitMermaid(repoMap, profile) {
+  const p = resolveProfile(profile, repoMap);
   const out = ["graph TD"];
 
   // ノード宣言（ソース順）
   for (const [id, node] of repoMap.nodes) {
-    const [open, close] = SHAPE[node.kind] ?? ["[", "]"];
+    const [open, close] = p.mermaidShape[node.kind] ?? ["[", "]"];
     out.push(`  ${mermaidId(id)}${open}${mermaidLabel(node.label)}${close}`);
   }
 
   // エッジ（index 順）。構造=実線、依存=点線。
   for (const e of repoMap.edges) {
-    const arrow = isHierarchy(e.relation) ? "-->" : "-.->";
+    const arrow = p.isHierarchy(e.relation) ? "-->" : "-.->";
     out.push(`  ${mermaidId(e.from)} ${arrow}|${e.relation}| ${mermaidId(e.to)}`);
   }
 

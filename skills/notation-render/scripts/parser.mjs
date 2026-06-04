@@ -8,23 +8,22 @@
 // repoMap は §4 のとおり座標も行番号も持たない。診断に必要な行番号は別マップ `info` に保持し、
 // JSON 出力（内部モデル）は §4 のフィールドだけになるようにする。
 
-import {
-  makeRepoMap, VERSION_HEADER,
-  isKind, isRelation, ID_RE, ID_MAX_LEN, META_KEYS, DEPTH_VALUES,
-} from "./model.mjs";
+import { makeModel, ID_RE, ID_MAX_LEN, DEPTH_VALUES } from "./model.mjs";
+import { selectProfile } from "./profiles.mjs";
 import { error, warning } from "./diagnostics.mjs";
 
 // --- 公開 API ---
 
 /**
- * DSL テキストをパースする。
- * @returns {{ repoMap: object, diagnostics: object[], info: object, fatal: boolean }}
+ * DSL テキストをパースする。先頭の version 行で対応プロファイル（repo-map v1 / document-map v1）を
+ * 選び、共通の状態機械で内部モデルを組む。列挙（kind/relation）・scope メタキー名はプロファイル由来。
+ * @returns {{ repoMap: object, profile: object|undefined, diagnostics: object[], info: object, fatal: boolean }}
  *   fatal=true はバージョン不一致など「描画も意味検査も意味がない」状態（validator を回さない）。
+ *   戻り値のキー名は後方互換のため `repoMap`（= 内部モデル。document-map でも同名）。
  */
 export function parse(text) {
   const lines = normalizeLines(text);
   const diagnostics = [];
-  const repoMap = makeRepoMap();
   const info = {
     meaningfulLineCount: 0,
     metaKeyLines: new Map(), // key -> line
@@ -42,13 +41,16 @@ export function parse(text) {
   if (firstIdx === -1) {
     diagnostics.push(error("E-NOVERSION", null,
       "document has no version header", "add `# repo-map v1` as the first line"));
-    return { repoMap, diagnostics, info, fatal: true };
+    return { repoMap: makeModel("repo-map v1", "root"), profile: undefined, diagnostics, info, fatal: true };
   }
-  const versionDiag = checkVersionHeader(lines[firstIdx], firstIdx + 1);
-  if (versionDiag) {
-    diagnostics.push(versionDiag);
-    return { repoMap, diagnostics, info, fatal: true };
+  const sel = selectProfile(lines[firstIdx].trimEnd());
+  if (sel.versionError) {
+    const ve = sel.versionError;
+    diagnostics.push(error(ve.code, firstIdx + 1, ve.message, ve.remedy));
+    return { repoMap: makeModel("repo-map v1", "root"), profile: undefined, diagnostics, info, fatal: true };
   }
+  const profile = sel.profile;
+  const repoMap = makeModel(profile.version, profile.scopeKey);
 
   // --- セクション状態機械（§3.1） ---
   // ランク: meta=0, nodes=1, edges=2, layout=3。厳密増加でなければ E-ORDER / E-DUPSECTION。
@@ -111,13 +113,13 @@ export function parse(text) {
     }
     if (current === "@bad") continue; // 不正セクション下のエントリは無視（既に E-BADSECTION 報告済み）
 
-    if (current === "@meta") parseMetaLine(content, lineNo, repoMap, info, diagnostics);
-    else if (current === "@nodes") parseNodeLine(content, lineNo, repoMap, info, diagnostics);
-    else if (current === "@edges") parseEdgeLine(content, lineNo, repoMap, info, diagnostics);
+    if (current === "@meta") parseMetaLine(content, lineNo, repoMap, info, diagnostics, profile);
+    else if (current === "@nodes") parseNodeLine(content, lineNo, repoMap, info, diagnostics, profile);
+    else if (current === "@edges") parseEdgeLine(content, lineNo, repoMap, info, diagnostics, profile);
     else if (current === "@layout") parseLayoutLine(content, lineNo, repoMap, info, diagnostics);
   }
 
-  return { repoMap, diagnostics, info, fatal: false };
+  return { repoMap, profile, diagnostics, info, fatal: false };
 }
 
 // --- 行の正規化・分類（§1.1 / §1.2） ---
@@ -143,19 +145,6 @@ function classifyLine(raw) {
   }
   if (lead === "  ") return { kind: "entry" }; // ちょうど 2 スペース
   return { kind: "indent-error" }; // 1 スペース・3+・タブ字下げなど
-}
-
-/** バージョンヘッダを検査。OK なら null、違反なら診断を返す（§2）。 */
-function checkVersionHeader(raw, lineNo) {
-  const v = raw.trimEnd();
-  if (v === VERSION_HEADER) return null;
-  const m = /^#\s+repo-map\s+v(\S+)/.exec(v);
-  if (m && m[1] !== "1") {
-    return error("E-BADVERSION", lineNo,
-      `unsupported version '${m[1]}'`, "this renderer supports repo-map v1 only");
-  }
-  return error("E-NOVERSION", lineNo,
-    "first non-empty line is not `# repo-map v1`", "make the first line exactly `# repo-map v1`");
 }
 
 // --- エントリのトークン化（§1.5・引用 §3.5） ---
@@ -206,7 +195,7 @@ function tokenize(content) {
 
 // --- @meta（§3.2） ---
 
-function parseMetaLine(content, lineNo, repoMap, info, diagnostics) {
+function parseMetaLine(content, lineNo, repoMap, info, diagnostics, profile) {
   if (content.includes("\t")) {
     diagnostics.push(warning("W-CHAR", lineNo, "entry value contains a tab", "replace tabs with spaces"));
   }
@@ -224,7 +213,7 @@ function parseMetaLine(content, lineNo, repoMap, info, diagnostics) {
   }
   const value = after.trim();
 
-  if (!META_KEYS.includes(key)) {
+  if (!profile.metaKeys.includes(key)) {
     diagnostics.push(error("E-BADMETAKEY", lineNo, `unknown meta key '${key}'`, "remove the unknown key"));
     return;
   }
@@ -241,10 +230,11 @@ function parseMetaLine(content, lineNo, repoMap, info, diagnostics) {
     } else {
       repoMap.meta.depth = d;
     }
-  } else if (key === "root") {
-    repoMap.meta.root = value;
+  } else if (key === profile.scopeKey) {
+    // scope（repo-map=root / document-map=source）。値は逐語保持。空白は W-PATHSPACE。
+    repoMap.meta[profile.scopeKey] = value;
     if (/\s/.test(value)) {
-      diagnostics.push(warning("W-PATHSPACE", lineNo, "root path contains a space", "avoid spaces in paths"));
+      diagnostics.push(warning("W-PATHSPACE", lineNo, `${profile.scopeKey} path contains a space`, "avoid spaces in paths"));
     }
   } else if (key === "generated") {
     repoMap.meta.generated = value;
@@ -264,7 +254,7 @@ function isIsoTimestamp(v) {
 
 // --- @nodes（§3.3 / §3.5） ---
 
-function parseNodeLine(content, lineNo, repoMap, info, diagnostics) {
+function parseNodeLine(content, lineNo, repoMap, info, diagnostics, profile) {
   const { tokens, unclosedQuote, hasTab } = tokenize(content);
   if (hasTab) diagnostics.push(warning("W-CHAR", lineNo, "entry value contains a tab", "replace tabs with spaces"));
   if (unclosedQuote) {
@@ -283,9 +273,8 @@ function parseNodeLine(content, lineNo, repoMap, info, diagnostics) {
   }
 
   const kind = tokens.length >= 2 ? tokens[1].value : "";
-  if (tokens.length >= 2 && !isKind(kind)) {
-    diagnostics.push(error("E-BADKIND", lineNo, `unknown kind '${kind}'`,
-      "use system/package/module/file-group/external/datastore"));
+  if (tokens.length >= 2 && !profile.isKind(kind)) {
+    diagnostics.push(error("E-BADKIND", lineNo, `unknown kind '${kind}'`, `use ${profile.kindHint}`));
   }
 
   // ラベル / パス（§3.5）
@@ -321,7 +310,7 @@ function parseNodeLine(content, lineNo, repoMap, info, diagnostics) {
 
 // --- @edges（§3.4） ---
 
-function parseEdgeLine(content, lineNo, repoMap, info, diagnostics) {
+function parseEdgeLine(content, lineNo, repoMap, info, diagnostics, profile) {
   const { tokens, unclosedQuote, hasTab } = tokenize(content);
   if (hasTab) diagnostics.push(warning("W-CHAR", lineNo, "entry value contains a tab", "replace tabs with spaces"));
   if (unclosedQuote) diagnostics.push(error("E-QUOTE", lineNo, "unclosed quoted string", "close the quote"));
@@ -335,9 +324,8 @@ function parseEdgeLine(content, lineNo, repoMap, info, diagnostics) {
   const to = tokens[1].value;
   const relation = tokens[2].value;
 
-  if (!isRelation(relation)) {
-    diagnostics.push(error("E-BADREL", lineNo, `unknown relation '${relation}'`,
-      "use contains/imports/calls/deploys/reads/owns"));
+  if (!profile.isRelation(relation)) {
+    diagnostics.push(error("E-BADREL", lineNo, `unknown relation '${relation}'`, `use ${profile.relationHint}`));
   }
   if (from === to) {
     diagnostics.push(error("E-SELFEDGE", lineNo, `self-edge on '${from}'`, "remove the self-edge"));

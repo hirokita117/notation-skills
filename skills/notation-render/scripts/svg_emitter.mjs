@@ -5,20 +5,24 @@
 // ノード `<g>` には data-*（attrs）＋ data-x/data-y＋transform を、エッジ `<line>` には
 // class="edge"＋data-from/to/rel を付ける（HTML のドラッグで使う・静的 SVG では無害）。
 
-import { DIMS, THEME, kindFill, kindText, truncateLabel } from "./theme.mjs";
+import { DIMS, THEME, kindFill as defaultKindFill, kindText as defaultKindText, truncateLabel } from "./theme.mjs";
 import { nodeDataAttrs, escapeXmlText } from "./attrs.mjs";
 
 const { NODE_W, NODE_H } = DIMS;
 
 /**
- * RepoMap ＋ layout から SVG 文字列を作る。
+ * モデル ＋ layout から SVG 文字列を作る。kind→色だけがバージョンで異なるので opts で差し替え可能
+ * （未指定なら repo-map の色。幾何・属性導出は両バージョン共通）。
  * @param {object} repoMap
  * @param {object} layout  computeLayout の戻り値
+ * @param {object} [opts]  { rootAttrs?, kindFill?, kindText? }
  * @returns {string}
  */
 export function emitSvg(repoMap, layout, opts = {}) {
   const { canvas, edges, nodes, focus } = layout;
   const rootAttrs = opts.rootAttrs ? opts.rootAttrs + " " : "";
+  const kindFill = opts.kindFill ?? defaultKindFill;
+  const kindText = opts.kindText ?? defaultKindText;
   const L = [];
 
   L.push(
@@ -43,7 +47,7 @@ export function emitSvg(repoMap, layout, opts = {}) {
 
   // ノード（ソース順・transform で配置）
   for (const [id, node] of repoMap.nodes) {
-    L.push(emitNode(repoMap, id, node, nodes.get(id)));
+    L.push(emitNode(repoMap, id, node, nodes.get(id), kindFill, kindText));
   }
 
   // focus 枠（最後・幾何は変えず枠だけ）
@@ -69,7 +73,7 @@ function emitEdge(e) {
   );
 }
 
-function emitNode(repoMap, id, node, pos) {
+function emitNode(repoMap, id, node, pos, kindFill, kindText) {
   const data = nodeDataAttrs(repoMap, id);
   const label = escapeXmlText(truncateLabel(node.label));
   const idText = escapeXmlText(id);

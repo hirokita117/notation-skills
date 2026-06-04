@@ -4,13 +4,14 @@
 // あらゆる並び替えは正準順（ノードのソース順 srcIndex / エッジの index）で終わる全順序。
 // 乱数・時刻・ヒューリスティックのブレを持ち込まない。grammar.md §4 のモデルを入力に取る。
 
-import { isHierarchy, isDependency } from "./model.mjs";
+import { resolveProfile } from "./profiles.mjs";
 import { DIMS } from "./theme.mjs";
 
 const { NODE_W, NODE_H, H_GAP, V_GAP, MARGIN } = DIMS;
 
 /**
- * 検証済み RepoMap から座標を算出する。
+ * 検証済みモデルから座標を算出する。階層/依存の分類だけがバージョンで異なるのでプロファイルを使う
+ * （未指定なら model.version から解決）。座標計算・幾何は両バージョン共通。
  * @returns {{
  *   nodes: Map<string,{x:number,y:number,rank:number,slot:number,group:string}>,
  *   edges: {index:number,from:string,to:string,relation:string,dashed:boolean,x1:number,y1:number,x2:number,y2:number}[],
@@ -18,11 +19,12 @@ const { NODE_W, NODE_H, H_GAP, V_GAP, MARGIN } = DIMS;
  *   focus: string|undefined
  * }}
  */
-export function computeLayout(repoMap) {
+export function computeLayout(repoMap, profile) {
+  const p = resolveProfile(profile, repoMap);
   const ids = [...repoMap.nodes.keys()]; // ソース順
   const srcIndex = new Map(ids.map((id, i) => [id, i]));
 
-  const rank = computeRanks(repoMap, ids);
+  const rank = computeRanks(repoMap, ids, p);
   const { slot, group } = assignSlots(repoMap, ids, srcIndex, rank);
 
   // 座標
@@ -57,7 +59,7 @@ export function computeLayout(repoMap) {
   // エッジ端点（index 順・直線）
   const edges = repoMap.edges.map((e) => {
     const ep = routeEdge(nodes.get(e.from), nodes.get(e.to), rank.get(e.from), rank.get(e.to));
-    return { index: e.index, from: e.from, to: e.to, relation: e.relation, dashed: isDependency(e.relation), ...ep };
+    return { index: e.index, from: e.from, to: e.to, relation: e.relation, dashed: p.isDependency(e.relation), ...ep };
   });
 
   return { nodes, edges, canvas, focus: repoMap.meta.focus };
@@ -65,9 +67,9 @@ export function computeLayout(repoMap) {
 
 // --- ランク割り当て（layout-algorithm.md §2） ---
 
-function computeRanks(repoMap, ids) {
+function computeRanks(repoMap, ids, profile) {
   // (1) 階層系エッジのみ（index 順）。自己辺は除外。
-  const hierEdges = repoMap.edges.filter((e) => isHierarchy(e.relation) && e.from !== e.to);
+  const hierEdges = repoMap.edges.filter((e) => profile.isHierarchy(e.relation) && e.from !== e.to);
 
   // (2) 決定的フィードバックアーク除去（index 昇順に、閉路を閉じる辺を落とす）
   const keptAdj = new Map(ids.map((id) => [id, []]));
@@ -100,7 +102,7 @@ function computeRanks(repoMap, ids) {
   for (const e of hierEdges) { touchedByHier.add(e.from); touchedByHier.add(e.to); }
   const hasOverride = (id) => { const ov = repoMap.layout.get(id); return !!ov && ov.rank !== undefined; };
   for (const e of repoMap.edges) {
-    if (!isDependency(e.relation)) continue;
+    if (!profile.isDependency(e.relation)) continue;
     const cand = e.to;
     if (touchedByHier.has(cand) || hasOverride(cand)) continue;
     if (!rank.has(cand) || !rank.has(e.from)) continue;

@@ -1,9 +1,11 @@
 # html-viewer-contract — インタラクティブ HTML の契約（正本）
 
-このファイルは、`notation-render` が出す **インタラクティブ repo-map HTML** と、本 Skill の
-**Python ブリッジ**が守るべき取り決めの **正本** です。`notation-render` は HTML を出すときに
-この契約を **参照** する（再定義しない）。値の導出規則（id/kind/label/path/edges）は
-[`repo-map-notation/references/grammar.md`](../../repo-map-notation/references/grammar.md) に従う。
+このファイルは、`notation-render` が出す **インタラクティブ HTML（`repo-map v1` / `document-map v1`）** と、
+本 Skill の **Python ブリッジ**が守るべき取り決めの **正本** です。`notation-render` は HTML を出すときに
+この契約を **参照** する（再定義しない）。値の導出規則（id/kind/label/path/edges）は各 DSL の grammar.md
+（[repo-map](../../repo-map-notation/references/grammar.md) / [document-map](../../document-map-notation/references/grammar.md)）に従う。
+版で変わるのは chrome（title・凡例の kind 集合・`data-<notation>-dsl` 属性名・buildPrompt 体裁・色）だけで、
+`data-*` スキーマ・API・フォールバック挙動は両版で共通。
 
 > 位置づけ: HTML / SVG は DSL の **派生物**。ここで決めるのは「描画済み HTML に、理解補助のための
 > メタデータと最小 UI をどう載せるか」だけ。意味の正本は常に DSL。
@@ -64,12 +66,13 @@ web core imports
 
 いずれも **DSL から決定的に導出**され（同じ DSL → 同じ属性値）、未知属性は既存コンシューマ（ブリッジ等）が無視するので**後方互換**。**ドラッグは view-time の表示操作のみで、出力ファイル＝リロード時の初期レイアウトを一切変えない**（決定性は壊さない）。DSL 文法は不変。
 
-### ドキュメントの DSL 正本パス（`data-repo-map-dsl`・任意）
+### ドキュメントの DSL 正本パス（`data-<notation>-dsl`・任意）
 
-ルート要素 `<html>` に、入力 DSL 正本ファイルの**絶対パス**を任意属性 `data-repo-map-dsl` として
-載せてよい（`notation-render` が生成時に CLI 入力ファイルパスを `realpathSync` で解決して付与。
+ルート要素 `<html>` に、入力 DSL 正本ファイルの**絶対パス**を notation 別の任意属性
+（repo-map=`data-repo-map-dsl` / document-map=`data-document-map-dsl`）として載せてよい
+（`notation-render` が生成時に CLI 入力ファイルパスを `realpathSync` で解決して付与。
 stdin など不明時は **属性を出さない**）。copy / `file://` モードの `buildPrompt` はこれを読み、
-プロンプトの `repo-map DSL file:` 行に使う（未付与なら `(未指定)`）。
+プロンプトの `<notation> DSL file:` 行に使う（未付与なら `(未指定)`）。
 
 絶対パスにするのは cwd に依存せず解決できるため（Viewer を貼り付ける Claude セッションの作業ディレクトリは
 repo-root とは限らない）。属性は**任意・加算的**で、無くても既存コンシューマは無視する（後方互換）。
@@ -87,6 +90,7 @@ copy（render 入力）で経路次第で表記が異なり得るが、どちら
 ### `GET /api/health`
 ```json
 { "ok": true, "repoRoot": "...", "html": "...", "dsl": "... or null",
+  "notation": "repo-map or document-map",
   "claude": true, "permissionMode": "plan", "allowedTools": "Read,Glob,Grep",
   "sessionContinuity": true, "sessionId": "... or null", "remoteShutdown": true,
   "availableModels": ["opus","sonnet","haiku"],
@@ -191,7 +195,8 @@ HTML 側 JS は配信元で挙動を切り替える:
   `<textarea>` にプロンプトを表示して手動コピーさせる。
 
 HTML 側 `buildPrompt` は、ブリッジ側 `build_prompt`（[bridge-claude-invocation.md](bridge-claude-invocation.md)）と
-**同じ体裁**のプロンプトを作る。どちらの方式でも同じ内容が Claude Code に渡る。
+**同じ体裁**のプロンプトを作る。どちらの方式でも同じ内容が Claude Code に渡る。体裁は notation で変わり
+（repo-map / document-map）、生成 HTML の notation とブリッジの notation（`--dsl` から自動判定）を一致させる。
 
 ---
 

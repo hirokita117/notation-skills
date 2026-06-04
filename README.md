@@ -33,17 +33,18 @@
 
 ---
 
-## 4 つの Skill と使い分け
+## 5 つの Skill と使い分け
 
 | # | Skill | 役割 | 入力 → 出力 |
 |---|-------|------|------------|
 | 1 | [`notation-core`](skills/notation-core/SKILL.md) | 記法中心設計（Notation-first design / MNP）の共通土台・用語・原則 | 設計判断 → 原則 |
 | 2 | [`repo-map-notation`](skills/repo-map-notation/SKILL.md) | リポジトリ構造を `repo-map v1` DSL に落とす（**DSL 生成のみ**） | リポジトリ → DSL テキスト |
-| 3 | [`notation-render`](skills/notation-render/SKILL.md) | DSL **だけ**を読んで図に変換（**決定的レンダリング**） | DSL テキスト → HTML |
-| ＋ | [`repo-map-interactive-viewer`](skills/repo-map-interactive-viewer/SKILL.md) | 生成済みインタラクティブ HTML をローカル Claude Code とつなぐ対話ビューア（**描画はしない**） | HTML ＋ クリック → ローカル Claude の回答 |
+| 3 | [`document-map-notation`](skills/document-map-notation/SKILL.md) | ドキュメント（仕様書・設計書・README・議事録・PRD 等）の構造・論点・関係を `document-map v1` DSL に落とす（**DSL 生成のみ**） | ドキュメント / 本文 → DSL テキスト |
+| 4 | [`notation-render`](skills/notation-render/SKILL.md) | DSL **だけ**を読んで図に変換（**決定的レンダリング**・先頭行でバージョン分岐） | DSL テキスト → HTML |
+| ＋ | [`repo-map-interactive-viewer`](skills/repo-map-interactive-viewer/SKILL.md) | 生成済みインタラクティブ HTML をローカル Claude Code とつなぐ対話ビューア（**描画はしない**・repo-map / document-map 両対応） | HTML ＋ クリック → ローカル Claude の回答 |
 
-- `repo-map-notation` は **DSL しか出しません**。Mermaid / Figma を直接は描きません。
-- `notation-render` は **DSL しか受け取りません**。自然言語の要望や口頭のレイアウトから直接図を描くことはしません（不足があれば `repo-map-notation` に戻します）。HTML は既定で `data-*`＋質問パネル付きの**インタラクティブ Viewer** を出します。
+- `repo-map-notation` / `document-map-notation` は **DSL しか出しません**。Mermaid / Figma を直接は描きません。対象が違うだけで（リポジトリ / ドキュメント）、どちらも `notation-render` に渡します。
+- `notation-render` は **DSL しか受け取りません**。自然言語の要望や口頭のレイアウトから直接図を描くことはしません（不足があれば DSL を出した生成 Skill に戻します）。`# repo-map v1` / `# document-map v1` を先頭行で判定し、未知バージョンは描かず拒否します。HTML は既定で `data-*`＋質問パネル付きの**インタラクティブ Viewer** を出します。
 - `repo-map-interactive-viewer` は**アドオン**です。生成済み HTML を `127.0.0.1` 限定の Python ブリッジで配信し、ノードをクリックしてローカル Claude Code に質問できるようにします（**完全ローカル・Node.js 不要・Python 標準ライブラリのみ**）。対話は読み取り専用で DSL 正本を変えません。
 - `notation-core` は、初めて触るときと、設計判断に迷ったときに読む土台です。毎回読む必要はありません。
 
@@ -298,6 +299,26 @@ Skill 対応のエージェント（Claude Code など）にこれらを読み�
 
 一部だけ深掘りしたいときは「`services/auth` を depth 2 で詳しく」のように 1 段目をやり直し、スコープを絞った新しい DSL を得てから再度描画します。
 
+### ドキュメントを図解する場合
+
+リポジトリの代わりに**ドキュメント**（仕様書・設計書・README・議事録・PRD 等）を図解するときは、`document-map-notation` を使います。同じ 2 段です。
+
+**1 段目 — ドキュメントを DSL にする:**
+
+```
+この docs/requirements.md を図解してください。まず depth 1 で。
+```
+
+→ `document-map-notation` が起動し、主要セクション・要件・決定事項・未決事項・リスク・関係者を抽出して `# document-map v1` で始まる完全な DSL テキストを返します（全文要約はしません）。
+
+**2 段目 — DSL を図にする:**
+
+```
+さっき出力された document-map DSL を HTML にしてください。
+```
+
+→ `notation-render` が先頭行 `# document-map v1` を判定し、その DSL **だけ**を入力に決定的な HTML を返します。特定セクションを深掘りしたいときは「『認証フロー』の章だけ depth 2 で」のように 1 段目をやり直します。
+
 ---
 
 ## インタラクティブ Viewer の使い方（ローカルで Claude Code に質問）
@@ -331,7 +352,7 @@ python3 skills/repo-map-interactive-viewer/scripts/repo_map_local_bridge.py \
 
 ## DSL カタログ（ギャラリー）
 
-`repo-map v1` の代表例を「**DSL 全文 / 生成 HTML（インタラクティブ Viewer・iframe）**」で 1 画面比較できる静的ギャラリーを `gallery/` に同梱しています。`gallery/index.html` を **`file://` で開く**だけで、左の一覧（notation バージョンで自動グループ化）から例を選び、右のタブで切り替えられます。Storybook 本体・npm 依存は不要（Node 標準ライブラリのみ・決定的）です。
+`repo-map v1` / `document-map v1` の代表例を「**DSL 全文 / 生成 HTML（インタラクティブ Viewer・iframe）**」で 1 画面比較できる静的ギャラリーを `gallery/` に同梱しています。`gallery/index.html` を **`file://` で開く**だけで、左の一覧（notation バージョンで自動グループ化）から例を選び、右のタブで切り替えられます。Storybook 本体・npm 依存は不要（Node 標準ライブラリのみ・決定的）です。
 
 **新しい例を足す手順:**
 
@@ -356,8 +377,9 @@ notation-skills/
 │   └── marketplace.json            # このリポジトリを marketplace 化
 └── skills/
     ├── notation-core/              # 共通土台（思想・用語・原則）
-    ├── repo-map-notation/          # DSL 生成（repo-map v1 の正式文法はここが正本）
-    ├── notation-render/            # DSL → 図（決定的レンダリング）
+    ├── repo-map-notation/          # リポジトリ → repo-map v1 DSL 生成（正式文法はここが正本）
+    ├── document-map-notation/      # ドキュメント → document-map v1 DSL 生成（正式文法はここが正本）
+    ├── notation-render/            # DSL → 図（決定的レンダリング・先頭行でバージョン分岐）
     └── repo-map-interactive-viewer/ # 生成済み HTML をローカル Claude Code とつなぐ対話ビューア
 ```
 

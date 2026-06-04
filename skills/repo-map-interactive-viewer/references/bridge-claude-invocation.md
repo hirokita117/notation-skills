@@ -49,7 +49,26 @@ DSL excerpt:
 `--dsl` 省略時は `(未指定)`。絶対パスにするのは、Claude の cwd（=repo_root）に依存せず確実に解決できるため。
 
 HTML 側 `buildPrompt`（copy 方式）も同じ体裁を作るので、どちらの方式でも同じ内容になる。copy 方式では
-`<html data-repo-map-dsl>` に埋め込まれた絶対パス（`notation-render` が生成時に付与）を使う（[html-viewer-contract.md](html-viewer-contract.md) §1）。
+`<html data-<notation>-dsl>` に埋め込まれた絶対パス（`notation-render` が生成時に付与）を使う（[html-viewer-contract.md](html-viewer-contract.md) §1）。
+
+### notation による体裁差（repo-map / document-map）
+
+`build_prompt(payload, dsl_file, notation)` は notation で体裁を切り替える。**HTML 側 `buildPrompt` と
+バイト一致**させること（生成 HTML が document-map なら、ブリッジも document-map 体裁で返す）。
+
+| 箇所 | repo-map | document-map |
+|------|----------|--------------|
+| 役割の前置き | 「ローカルリポジトリ理解」「対象リポジトリは現在の working directory」 | 「ローカルドキュメント理解」「対象ドキュメントは現在の working directory 配下」 |
+| Viewer 名 | `repo-map HTML Viewer` | `document-map HTML Viewer` |
+| ノードの場所欄 | `path:` | `ref:`（出典ロケータ） |
+| DSL 正本パス行 | `repo-map DSL file:` | `document-map DSL file:` |
+| 回答方針（意味） | 「まず repo-map DSL 上の意味」 | 「まず document-map DSL 上の意味（構造・論点・関係）」 |
+| 回答方針（確認先） | 「実ファイルを確認」 | 「元ドキュメントを確認」 |
+| 回答方針（締め） | 「次に読むとよいファイル」 | 「次に読むとよい箇所」 |
+
+notation の決定: **`--notation` 明示があれば優先、無ければ `--dsl` の先頭行から自動判定**
+（`# document-map v1` → document-map、それ以外/未指定 → repo-map）。`build_prompt` の既定は repo-map。
+実装は [`../scripts/bridge_prompt.py`](../scripts/bridge_prompt.py)（`build_prompt` / `detect_notation`）。
 
 ---
 

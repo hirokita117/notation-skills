@@ -1,14 +1,15 @@
 ---
 name: notation-render
 description: >
-  notation（現時点は `repo-map v1` DSL）を、**DSL テキストだけ**を入力に、決定的に図へ変換する Skill。
-  Render a notation DSL (currently `repo-map v1`) into a deterministic diagram — input is the DSL text ONLY.
+  notation（`repo-map v1` / `document-map v1` DSL）を、**DSL テキストだけ**を入力に、決定的に図へ変換する Skill。
+  Render a notation DSL (`repo-map v1` or `document-map v1`) into a deterministic diagram — input is the DSL text ONLY.
+  先頭行のバージョンで対応を分岐する（未知バージョンは描かず拒否）。
   `parse → validate → layout → emit` の手順で、同じ DSL からは常に同じ図を出す。出力は HTML（既定・単一ファイルの
   インタラクティブ Viewer・クリック質問パネル付き・`data-*`＋凡例）、任意で Mermaid。色・フォント・配置は固定テーマと固定アルゴリズムで決まり、
   実行ごとにブレない。
   次のような発話で起動する:
-  「この DSL を HTML にして」「repo-map を描画して」「notation を可視化して」「地図を HTML で見せて」
-  「DSL を図にして」「repo-map v1 をレンダリングして」「この記法を絵にして」「構造図を HTML で出力」
+  「この DSL を HTML にして」「repo-map を描画して」「document-map を描画して」「notation を可視化して」「地図を HTML で見せて」
+  「DSL を図にして」「repo-map v1 をレンダリングして」「document-map v1 をレンダリングして」「この記法を絵にして」「構造図を HTML で出力」
   「出力された DSL を描いて」「同じ DSL なら同じ図にして」「凡例つきの HTML プレビューで」。
   禁止（重要・本文でも再掲）: 入力された DSL 以外（自然言語の要望・口頭のレイアウト・リポジトリの再走査）から
   図を描かないこと。DSL が無ければ描かず、不足や矛盾は `repo-map-notation` に差し戻すこと。
@@ -19,15 +20,15 @@ description: >
 
 ## 役割
 
-入力された **notation の DSL テキストだけ**を読み、**決定的に**図へ変換する。現時点で受け付ける notation は **`repo-map v1` のみ**。設計の土台は [notation-core](../notation-core/SKILL.md)、文法・検証の正本は [repo-map-notation/references/grammar.md](../repo-map-notation/references/grammar.md)。この Skill はそれらを**再定義せず参照する**。
+入力された **notation の DSL テキストだけ**を読み、**決定的に**図へ変換する。受け付ける notation は **`repo-map v1` と `document-map v1`**。先頭のバージョン行で対応を分岐し、未知バージョンは描かず拒否する。設計の土台は [notation-core](../notation-core/SKILL.md)、文法・検証の正本は各 DSL の grammar.md（[repo-map](../repo-map-notation/references/grammar.md) / [document-map](../document-map-notation/references/grammar.md)）。この Skill はそれらを**再定義せず参照する**。両 DSL は 1 本のパイプラインを共有し、版差（列挙・色・scope メタキー・depth×kind）は `scripts/profiles.mjs` のプロファイルで切り替える。
 
 **主経路は、LLM が HTML 本文を書き起こすのではなく、同梱の実行可能レンダラー [`scripts/render_repo_map.mjs`](scripts/render_repo_map.mjs) を実行すること。** これにより `parse → validate → layout → emit` がコードで機械的に走り、同じ DSL からは毎回同じ HTML/JSON が出る（下記「スクリプト」）。
 
 ## 入力契約（最重要）
 
-- **入力は DSL テキストのみ。** 受け付けるのは先頭行 `# repo-map v1` のテキスト。バージョン行で対応を分岐し、未知バージョンは描かず拒否する。
+- **入力は DSL テキストのみ。** 受け付けるのは先頭行 `# repo-map v1` または `# document-map v1` のテキスト。バージョン行で対応を分岐し、未知バージョン（`v2` 等）は描かず拒否する（`E-BADVERSION`/`E-NOVERSION`）。
 - **DSL 以外から描かない。** 自然言語の要望、口頭・チャットでのレイアウト指示、リポジトリの再走査——いずれも描画の入力にしない。図に出す情報は、すべて DSL に書かれていなければならない。
-- **不足は差し戻す。** DSL に必要な情報が足りない／矛盾するときは、**自分で推測して埋めず**、[repo-map-notation](../repo-map-notation/SKILL.md) に戻して DSL を直してもらう。
+- **不足は差し戻す。** DSL に必要な情報が足りない／矛盾するときは、**自分で推測して埋めず**、その DSL を出した生成 Skill（[repo-map-notation](../repo-map-notation/SKILL.md) / [document-map-notation](../document-map-notation/SKILL.md)）に戻して DSL を直してもらう。
 - 詳細は [references/render-contract.md](references/render-contract.md)。
 
 ## パイプライン
@@ -92,7 +93,8 @@ Figma API / Figma Skill は**使わない**。出力先として人が後から 
 
 ## 関連スキル
 
-- [repo-map-notation](../repo-map-notation/SKILL.md) — 入力 DSL の供給元。不足は必ずここへ差し戻す。
+- [repo-map-notation](../repo-map-notation/SKILL.md) — リポジトリ版 `repo-map v1` DSL の供給元。不足は必ずここへ差し戻す。
+- [document-map-notation](../document-map-notation/SKILL.md) — ドキュメント版 `document-map v1` DSL の供給元。不足は必ずここへ差し戻す。
 - [repo-map-interactive-viewer](../repo-map-interactive-viewer/SKILL.md) — 出力したインタラクティブ HTML を、ローカル Claude Code とつなぐ対話ビューア（CLI/ブリッジ側）。`data-*` の契約はここが正本。
 - [notation-core](../notation-core/SKILL.md) — 「レンダラーは DSL だけを読む」「決定的であれ」という原則の出どころ。
 - 連携全体は [SKILLS_MAP.md](../../SKILLS_MAP.md)。
