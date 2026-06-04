@@ -89,14 +89,16 @@ DSL 生成は [`repo-map-notation`](../repo-map-notation/SKILL.md) の責務。�
 > Ctrl+C せずにターミナルを閉じてブリッジが孤児化しても、**次回同じポートで起動すると
 > 古い自分のブリッジを自動で検出・停止してから立ち上がる**（本人確認できた自分のブリッジ
 > だけが対象。別アプリは止めない）。無効化は `--no-reclaim`。詳細は
-> [references/local-bridge.md](references/local-bridge.md) の「起動時のポート確保」。
+> [references/bridge-session-and-reclaim.md](references/bridge-session-and-reclaim.md) の「起動時のポート確保」。
 
 ## reference 地図
 
 | ファイル | 中身 | いつ読む |
 |----------|------|----------|
 | [references/html-viewer-contract.md](references/html-viewer-contract.md) | **契約の正本**: `data-*` スキーマ／`/api/ask` JSON 形／フォールバック挙動 | HTML と ブリッジの取り決めを確認するとき |
-| [references/local-bridge.md](references/local-bridge.md) | ブリッジの起動引数・エンドポイント・プロンプト整形・claude 呼び出し | ブリッジを動かす・調整するとき |
+| [references/local-bridge.md](references/local-bridge.md) | ブリッジの起動引数・起動例・エンドポイント一覧 | ブリッジを起動・運用するとき |
+| [references/bridge-claude-invocation.md](references/bridge-claude-invocation.md) | プロンプト整形（`build_prompt`）と claude argv 組み立て（`build_claude_argv`） | プロンプト体裁や claude フラグ・model/effort を調整するとき |
+| [references/bridge-session-and-reclaim.md](references/bridge-session-and-reclaim.md) | 会話継続（`--session-id`/`--resume`）と起動時ポート確保（reclaim） | 会話継続や起動時のポート挙動を理解・調整するとき |
 | [references/security.md](references/security.md) | ローカル限定・任意コマンド禁止・repo-root ジェイル等の安全方針 | 安全性を確認するとき |
 
 ## scripts

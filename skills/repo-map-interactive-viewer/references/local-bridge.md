@@ -4,6 +4,11 @@
 ライブラリのみ）。生成済み repo-map HTML を 127.0.0.1 限定で配信し、HTML からの質問を
 `claude -p` に橋渡しする **ローカル補助プロセス**。描画はしない。DSL 正本は変更しない。
 
+このファイルは **起動・運用**（起動引数・起動例・エンドポイント一覧）を扱う。内部挙動の詳細は
+別ファイルへ: プロンプト整形と claude 呼び出しは
+[bridge-claude-invocation.md](bridge-claude-invocation.md)、会話継続と起動時 reclaim は
+[bridge-session-and-reclaim.md](bridge-session-and-reclaim.md)。
+
 ---
 
 ## 起動引数
@@ -62,101 +67,3 @@ macOS は [`../scripts/open_repo_map_viewer.command`](../scripts/open_repo_map_v
 > `/api/shutdown` で停止すると `serve_forever` が抜けて Python プロセスが正常終了するため、
 > ランチャー（`.command`）の `wait "$BRIDGE_PID"` も正常終了する（trap は INT/TERM 用で発火しない）。
 > HTML 側はその後ブラウザのタブクローズを best-effort で試みる（[html-viewer-contract.md](html-viewer-contract.md) §2）。
-
----
-
-## プロンプト整形（`build_prompt`）
-
-`/api/ask` の入力から、次の体裁の日本語プロンプトを生成して `claude -p` に渡す:
-
-```
-あなたはローカルリポジトリ理解を支援するアシスタントです。
-対象リポジトリは現在のworking directoryです。
-
-ユーザーは repo-map HTML Viewer 上で次のノードを見ています。
-
-node id: <nodeId>
-label: <label>
-kind: <kind>
-path: <path>
-related edges:
-<relatedEdges>
-
-DSL excerpt:
-<dslExcerpt>
-
-ユーザーの質問:
-<question>
-
-回答方針:
-- まず repo-map DSL 上の意味を説明してください。
-- 必要なら Read / Glob / Grep で実ファイルを確認してください。
-- 推測と確認済み事実を分けてください。
-- ファイル編集、生成、削除はしないでください。
-- 最後に「次に読むとよいファイル」を挙げてください。
-- 回答は日本語を基本にしてください。
-```
-
-HTML 側 `buildPrompt`（copy 方式）も同じ体裁を作るので、どちらの方式でも同じ内容になる。
-
----
-
-## claude 呼び出し（`build_claude_argv`）
-
-安全寄りの固定フラグセットで argv を組み立て、`subprocess.run(..., cwd=repo_root, shell=False)`
-で実行する（`shell=True` は使わない）:
-
-```
-# 初回（新しい会話）
-claude -p --output-format json --permission-mode plan --session-id <uuid> <prompt> --allowedTools Read,Glob,Grep
-# 2 回目以降（同じ会話を継続）
-claude -p --output-format json --permission-mode plan --resume <uuid> <prompt> --allowedTools Read,Glob,Grep
-# model / effort を選択した場合（--model の直後に追加）
-claude -p --output-format json --permission-mode plan --model opus --effort high --session-id <uuid> <prompt> --allowedTools Read,Glob,Grep
-```
-
-`--claude-model`（起動時）または `/api/ask` の per-request `model` 指定時は `--model <model>` を、
-per-request `effort` 指定時は `--effort <level>` を **`--model` の直後**（prompt 位置引数より前・session フラグの前）に追加する。
-`--effort` の許可値は **`low/medium/high/xhigh/max`**（CLI v2.1.161 で確認。`--print`=`-p` 併用が前提）。許可外の
-`model`/`effort` は API 層（`validate_ask_payload`）が許可リストで `400` 拒否するため、不正値は subprocess に到達しない。
-`--allowedTools` は可変長オプションなので、prompt 位置引数を飲み込まないよう **カンマ形の単一値で最後**に置く。
-session フラグは prompt より前に置く。
-
-- `claude` が見つからない → `{ok:false, error:"claude コマンドが見つかりません…"}`。
-- 非ゼロ終了 / 未対応フラグ stderr / タイムアウト → `{ok:false, error, detail}` を HTML に返す。
-- `--output-format json` の出力から `result` フィールドを取り出して `answer` にする。
-
-## セッション継続（`/api/ask` ↔ `/api/reset`）
-
-同一起動中の質問を 1 つの Claude 会話として継続する。`claude` は毎回起動・即終了で **常駐しない**。
-
-- **ID はサーバ生成**: ブリッジが `uuid.uuid4()` を 1 本持ち、初回 `--session-id`、以降 `--resume`。
-  HTML からは設定・注入できない（`/api/ask` は client の `sessionId`/`session_id` を無視）。
-- **resume 失敗時**は新 UUID で fresh 起動を 1 回だけ再試行し、`ok:true`（会話リセット扱い）で返す。
-  ハードエラーにはしない。空 ID で `--resume` を出して対話ピッカーに落ちないよう、非空のときだけ付ける。
-- **直列化**: `claude_lock` で subprocess を直列化し、同一セッション ID への同時書き込み破損を防ぐ
-  （単一ユーザー前提なので待ちは稀）。`state_lock` は session_id/epoch の短時間保護で、`/api/reset` は
-  これだけを取って即返る。`session_epoch` により、reset が実行中 ask に勝つ（古い ask は ID を上書きしない）。
-- **無効化**: `--no-session-continuity` で質問ごと独立に戻る。`claude --no-session-persistence` は
-  resume と非互換なので **使わない**。
-
-## 起動時のポート確保（reclaim）
-
-ターミナルを Ctrl+C せずに閉じる等で、前回のブリッジが**孤児プロセス**としてポートを
-握ったまま残ることがある。起動時、新しいブリッジは bind の前に同ポートを点検し、
-**「自分のブリッジ」だけ**を停止してポートを空ける（`reclaim_port`）。
-
-- **本人確認**: `GET /api/health` を叩き、`Server` ヘッダ（全バージョンで
-  `repo-map-local-bridge/…`）または health JSON の `service == "repo-map-local-bridge"` で
-  自分のブリッジか判定する。PID は同じ health の `pid` から取得する。
-- **停止手順**: `SIGTERM` → 数秒待ってポートが解放されなければ `SIGKILL`。新ブリッジは
-  `SIGTERM` を捕まえて `server_close()` まで通す（穏当に終了）。
-- **別アプリは触らない**: ポートを握っているのが repo-map ブリッジでなければ**停止せず**、
-  「別ポートを指定して」と促して**起動を中止**する（無条件な kill はしない）。PID 不明の
-  古いブリッジも安全側で中止し、`pkill -f repo_map_local_bridge` を案内する。
-- **無効化**: `--no-reclaim` で点検・掃除をスキップ（ポートが塞がっていれば bind 失敗で中止）。
-
-> これは「閉じ忘れて孤児化したブリッジ」を次回起動が自動で片付けるための仕組み。
-> ゾンビ（defunct）ではなく**ポートを握ったまま動き続ける孤児**を対象にする。
-
-詳細な安全方針は [security.md](security.md)。
