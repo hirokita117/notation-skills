@@ -3,12 +3,12 @@ name: notation-render
 description: >
   notation（現時点は `repo-map v1` DSL）を、**DSL テキストだけ**を入力に、決定的に図へ変換する Skill。
   Render a notation DSL (currently `repo-map v1`) into a deterministic diagram — input is the DSL text ONLY.
-  `parse → validate → layout → emit` の手順で、同じ DSL からは常に同じ図を出す。出力は SVG（既定・単一ファイル）、
-  HTML（既定でクリック質問パネル付きのインタラクティブ Viewer・`data-*`＋凡例）、任意で Mermaid。色・フォント・配置は固定テーマと固定アルゴリズムで決まり、
+  `parse → validate → layout → emit` の手順で、同じ DSL からは常に同じ図を出す。出力は HTML（既定・単一ファイルの
+  インタラクティブ Viewer・クリック質問パネル付き・`data-*`＋凡例）、任意で Mermaid。色・フォント・配置は固定テーマと固定アルゴリズムで決まり、
   実行ごとにブレない。
   次のような発話で起動する:
-  「この DSL を SVG にして」「repo-map を描画して」「notation を可視化して」「地図を HTML で見せて」
-  「DSL を図にして」「repo-map v1 をレンダリングして」「この記法を絵にして」「構造図を SVG で出力」
+  「この DSL を HTML にして」「repo-map を描画して」「notation を可視化して」「地図を HTML で見せて」
+  「DSL を図にして」「repo-map v1 をレンダリングして」「この記法を絵にして」「構造図を HTML で出力」
   「出力された DSL を描いて」「同じ DSL なら同じ図にして」「凡例つきの HTML プレビューで」。
   禁止（重要・本文でも再掲）: 入力された DSL 以外（自然言語の要望・口頭のレイアウト・リポジトリの再走査）から
   図を描かないこと。DSL が無ければ描かず、不足や矛盾は `repo-map-notation` に差し戻すこと。
@@ -21,7 +21,7 @@ description: >
 
 入力された **notation の DSL テキストだけ**を読み、**決定的に**図へ変換する。現時点で受け付ける notation は **`repo-map v1` のみ**。設計の土台は [notation-core](../notation-core/SKILL.md)、文法・検証の正本は [repo-map-notation/references/grammar.md](../repo-map-notation/references/grammar.md)。この Skill はそれらを**再定義せず参照する**。
 
-**主経路は、LLM が SVG/HTML 本文を書き起こすのではなく、同梱の実行可能レンダラー [`scripts/render_repo_map.mjs`](scripts/render_repo_map.mjs) を実行すること。** これにより `parse → validate → layout → emit` がコードで機械的に走り、同じ DSL からは毎回同じ SVG/HTML/JSON が出る（下記「スクリプト」）。
+**主経路は、LLM が HTML 本文を書き起こすのではなく、同梱の実行可能レンダラー [`scripts/render_repo_map.mjs`](scripts/render_repo_map.mjs) を実行すること。** これにより `parse → validate → layout → emit` がコードで機械的に走り、同じ DSL からは毎回同じ HTML/JSON が出る（下記「スクリプト」）。
 
 ## 入力契約（最重要）
 
@@ -41,31 +41,29 @@ parse → validate → layout → emit
 3. **layout** — `@layout` の rank/group を尊重し、無い／部分のところは決定的アルゴリズムで配置する（[references/layout-algorithm.md](references/layout-algorithm.md)）。
 4. **emit** — 固定テーマで図を書き出す（[references/output-formats.md](references/output-formats.md)）。
 
-## スクリプト（主経路：DSL → renderer → SVG/HTML/JSON）
+## スクリプト（主経路：DSL → renderer → HTML/JSON）
 
-このパイプラインは **実行可能なレンダラー**として `scripts/` に実装されている。**可能な場合は、LLM が SVG/HTML 本文を考えて書くのではなく、このスクリプトを実行する。**
+このパイプラインは **実行可能なレンダラー**として `scripts/` に実装されている。**可能な場合は、LLM が HTML 本文を考えて書くのではなく、このスクリプトを実行する。**
 
 ```
-node skills/notation-render/scripts/render_repo_map.mjs input.repo-map --format svg  > out.svg
 node skills/notation-render/scripts/render_repo_map.mjs input.repo-map --format html > out.html
 cat input.repo-map | node skills/notation-render/scripts/render_repo_map.mjs - --format json
 ```
 
-- `--format svg|html|json|mermaid`（既定 `svg`）。`json` は parse/validate/layout 後の内部モデル確認用。
+- `--format html|json|mermaid`（既定 `html`）。`json` は parse/validate/layout 後の内部モデル確認用。
 - 入力はファイルパスまたは `-`（stdin）。出力は **stdout**、診断は **stderr**。終了コード: `0` 正常 / `1` 検証エラー（**描画しない**）/ `2` 使用法エラー。
 - **Node.js 標準ライブラリのみ・外部依存ゼロ。** 使い方の詳細とモジュール構成は [scripts/README.md](scripts/README.md)。テストは `node --test skills/notation-render/tests/`。
 - スクリプトは `references/*.md` と [grammar.md](../repo-map-notation/references/grammar.md) の**実装**であり、正本を新設しない。挙動と仕様が食い違ったら `.md` を正とし、スクリプトを直す。
 - HTML 出力ではノードを**ドラッグで移動**できる（接続線・ラベルが追従）。これは閲覧時の操作のみで、リロードすると決定的な初期レイアウトに戻る（出力ファイルの決定性は壊さない）。
 
-入力例とスナップショットは [examples/](examples/)（`example-a.dsl` ＋ 期待 SVG/HTML/JSON、`layout-demo.dsl`、`invalid.dsl`）。
+入力例とスナップショットは [examples/](examples/)（`example-a.dsl` ＋ 期待 HTML/JSON、`layout-demo.dsl`、`invalid.dsl`）。
 
 ## 出力の優先順位
 
-1. **SVG**（既定）— 単一ファイル、埋め込み可能。まずこれを出す。
-2. **HTML**（既定でインタラクティブ Viewer）— SVG＋凡例に、ノードクリックで質問できる固定 UI（`data-*` 属性＋質問パネル＋固定スクリプト）を載せる。決定的（同じ DSL → 同じ HTML）。`data-*` スキーマは [repo-map-interactive-viewer/references/html-viewer-contract.md](../repo-map-interactive-viewer/references/html-viewer-contract.md) を参照。Claude Code CLI 呼び出し・Python ブリッジは [`repo-map-interactive-viewer`](../repo-map-interactive-viewer/SKILL.md) の責務（ここでは出さない）。
-3. **Mermaid**（任意）— `graph TD` への**機械的変換**。Mermaid は**正本にしない**（レイアウトは Mermaid 任せになり決定性の対象外）。
+1. **HTML**（既定・インタラクティブ Viewer・決定的な正典）— 単一ファイル、まずこれを出す。レイアウト＋テーマから組んだインライン SVG の図＋凡例に、ノードクリックで質問できる固定 UI（`data-*` 属性＋質問パネル＋固定スクリプト）を載せる。決定的（同じ DSL → 同じ HTML）。`data-*` スキーマは [repo-map-interactive-viewer/references/html-viewer-contract.md](../repo-map-interactive-viewer/references/html-viewer-contract.md) を参照。Claude Code CLI 呼び出し・Python ブリッジは [`repo-map-interactive-viewer`](../repo-map-interactive-viewer/SKILL.md) の責務（ここでは出さない）。
+2. **Mermaid**（任意）— `graph TD` への**機械的変換**。Mermaid は**正本にしない**（レイアウトは Mermaid 任せになり決定性の対象外）。
 
-Figma API / Figma Skill は**使わない**。出力先として人が後から SVG/HTML を貼るのは自由だが、この Skill は Figma を描画経路にしない。詳細は [references/output-formats.md](references/output-formats.md)。
+Figma API / Figma Skill は**使わない**。出力先として人が後から HTML を貼るのは自由だが、この Skill は Figma を描画経路にしない。詳細は [references/output-formats.md](references/output-formats.md)。
 
 ## レイアウト（要約）
 
@@ -78,8 +76,8 @@ Figma API / Figma Skill は**使わない**。出力先として人が後から 
 
 入力契約の裏返しとして、次を**してはならない**。
 
-- ❌ **DSL なしで図を描く。** 「だいたいこんな感じで」式の自然言語から直接 SVG を起こさない。まず DSL を要求する（無ければ `repo-map-notation` へ）。
-- ❌ **同じ DSL から毎回違うレイアウトを出す。** レイアウトに乱数・実行時刻・気分を持ち込まない。アルゴリズムは固定（同一 DSL → 同一 SVG）。
+- ❌ **DSL なしで図を描く。** 「だいたいこんな感じで」式の自然言語から直接図を起こさない。まず DSL を要求する（無ければ `repo-map-notation` へ）。
+- ❌ **同じ DSL から毎回違うレイアウトを出す。** レイアウトに乱数・実行時刻・気分を持ち込まない。アルゴリズムは固定（同一 DSL → 同一 HTML）。
 - ❌ **リポジトリを再走査して DSL を勝手に補完する。** 図に足りない情報は、描画側で埋めず `repo-map-notation` に差し戻す。描画側はリポジトリを読まない。
 
 ## reference 地図
@@ -89,7 +87,7 @@ Figma API / Figma Skill は**使わない**。出力先として人が後から 
 | [references/render-contract.md](references/render-contract.md) | 受付 notation・バージョン分岐・パイプライン・検証ゲート | 入力の扱いを決めるとき |
 | [references/layout-algorithm.md](references/layout-algorithm.md) | 決定的レイアウト（rank / group / 座標） | 配置を出すとき |
 | [references/theme.md](references/theme.md) | テーマ定数（kind ごとの色・フォント・固定 hex） | 色・文字体裁を出すとき |
-| [references/output-formats.md](references/output-formats.md) | SVG / HTML / Mermaid の出し方、Figma 不使用 | 形式を選ぶとき |
+| [references/output-formats.md](references/output-formats.md) | HTML / Mermaid の出し方、Figma 不使用 | 形式を選ぶとき |
 | [scripts/README.md](scripts/README.md) ＋ [scripts/](scripts/) | 実行可能レンダラー本体（parser/validator/layout/emitter/CLI）と使い方 | **図を実際に生成するとき（主経路）** |
 
 ## 関連スキル

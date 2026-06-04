@@ -1,23 +1,16 @@
-# output-formats — SVG / HTML / Mermaid
+# output-formats — HTML / Mermaid
 
-`emit` 段で出す形式を定める。優先順位は **SVG（既定）> HTML > Mermaid（任意）**。座標は [layout-algorithm.md](layout-algorithm.md)、テーマ定数は [theme.md](theme.md)。
+`emit` 段で出す形式を定める。優先順位は **HTML（既定）> Mermaid（任意）**。座標は [layout-algorithm.md](layout-algorithm.md)、テーマ定数は [theme.md](theme.md)。
 
 ---
 
-## 1. SVG（既定・正典）
+## 1. HTML（既定・インタラクティブ Viewer・決定的な正典）
 
-- **単一ファイルの SVG** を出す。外部参照を持たず、そのまま貼り付け・埋め込みできる自己完結な 1 枚。
-- 中身は [layout-algorithm.md](layout-algorithm.md) の座標と [theme.md](theme.md) のテーマで決まる: ノードは角丸の矩形（kind ごとの塗り）、ラベル＋小さい ID、エッジは直線＋矢頭（階層=実線・依存=破線）、focus は amber の枠。
-- `viewBox` はキャンバス幅・高さ（§座標）に合わせる。背景は `#FFFFFF`。
-- **これが決定的な正典**である。同じ DSL からは同じ SVG（同じ座標・同じ色）が出る。
+HTML は **インタラクティブ Viewer を既定**として出す。外部参照を持たず、そのまま開ける**自己完結な 1 枚**で、**これが決定的な正典**である。同じ DSL からは同じ HTML（同じ座標・同じ色）が出る。
 
-## 2. HTML（既定でインタラクティブ Viewer）
+図そのものは、[layout-algorithm.md](layout-algorithm.md) の座標と [theme.md](theme.md) のテーマで決まる **インライン SVG**（ノードは角丸の矩形・kind ごとの塗り、ラベル＋小さい ID、エッジは直線＋矢頭で階層=実線・依存=破線、focus は amber の枠。`viewBox` はキャンバス幅・高さに一致し、背景は `#FFFFFF`）。このインライン SVG は **HTML の内部実装**であって、独立した出力形式ではない。固定の凡例と、ノードクリックで詳細を見て質問できる最小 UI を**固定テンプレート**として載せる。中身は次の 4 つ:
 
-HTML は **インタラクティブ Viewer を既定**として出す。SVG（§1）を埋め込み、固定の凡例に加えて、
-ノードクリックで詳細を見て質問できる最小 UI を**固定テンプレート**として載せた 1 枚の HTML。
-中身は次の 4 つ:
-
-1. **SVG 本体**＋各ノード `<g class="node">` への `data-*` 属性（`data-node-id` / `data-label` /
+1. **インライン SVG の図本体**＋各ノード `<g class="node">` への `data-*` 属性（`data-node-id` / `data-label` /
    `data-kind` / `data-path` / `data-related-edges` / `data-dsl-excerpt`）。属性値は **DSL から
    決定的に導出**する。スキーマと導出規則は
    [repo-map-interactive-viewer/references/html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md)
@@ -43,7 +36,7 @@ HTML は **インタラクティブ Viewer を既定**として出す。SVG（§
 `data-*` の値だけが DSL から決まる。model / effort セレクトの**選択肢は実行時に `/api/health` から充填**し
 ファイルには焼かないので、HTML ファイル本体（markup / CSS / スクリプト / Markdown レンダラ）は固定のまま。
 よって **同じ DSL → 同じ HTML**。乱数・時刻・気分は持ち込まない。
-SVG（§1）は引き続き**決定的な正典**で、HTML はそれを使う派生物。
+HTML 自体が**決定的な正典**であり、内部のインライン SVG はその実装にすぎない。
 
 **DSL 正本パスの埋め込み（任意・`data-repo-map-dsl`）**: ルート要素 `<html>` に、入力 DSL ファイルの
 **絶対パス**を `data-repo-map-dsl` 属性として載せる。`render_repo_map.mjs` が CLI 入力ファイルパスを
@@ -61,12 +54,11 @@ HTML Viewer は閲覧時に**ノードのドラッグ移動**にも対応して�
 ここは「契約どおりの HTML を決定的に出す」までで止める。最小実装例は
 [repo-map-interactive-viewer/examples/repo-map.html](../../repo-map-interactive-viewer/examples/repo-map.html)。
 
-**プレーン版**: パネル・スクリプト無しの「SVG＋凡例だけ」の静的 HTML が欲しいと**明示要求された場合のみ**、
-上記 1〜2 だけを出す（`data-*` は付けても害はないが、UI は足さない）。
+**プレーン版**: パネル・スクリプト無しの「図（インライン SVG）＋凡例だけ」の静的 HTML が欲しいと**明示要求された場合のみ**、上記 1〜2 だけを出す（`data-*` は付けても害はないが、UI は足さない）。
 
-## 3. Mermaid（任意・正本にしない）
+## 2. Mermaid（任意・正本にしない）
 
-`repo-map v1` → Mermaid `graph TD` への**機械的・決定的**変換。Mermaid はレイアウトを自前で行うため**幾何は決定的でなく**、あくまで便宜的な派生。**SVG が正典で、Mermaid を正本にしない。**
+`repo-map v1` → Mermaid `graph TD` への**機械的・決定的**変換。Mermaid はレイアウトを自前で行うため**幾何は決定的でなく**、あくまで便宜的な派生。**HTML が正典で、Mermaid を正本にしない。**
 
 **手順:**
 
@@ -93,9 +85,9 @@ HTML Viewer は閲覧時に**ノードのドラッグ移動**にも対応して�
    | calls | `-.->|calls|` | 依存 |
    | reads | `-.->|reads|` | 依存 |
 
-   構造は実線、依存は点線——SVG のテーマと読み味をそろえる。
+   構造は実線、依存は点線——図のテーマと読み味をそろえる。
 
-4. ランク / group / focus / 色は既定では持ち込まない。`meta.focus` があれば固定スニペット（`classDef focus ...` と `class <focusId> focus`）を 1 つだけ足す。`@layout` は無視する（Mermaid が独自に配置する）。ここだけは SVG と幾何が一致しない——**決定的な成果物は SVG であって Mermaid ではない**、と明示する。
+4. ランク / group / focus / 色は既定では持ち込まない。`meta.focus` があれば固定スニペット（`classDef focus ...` と `class <focusId> focus`）を 1 つだけ足す。`@layout` は無視する（Mermaid が独自に配置する）。ここだけは図と幾何が一致しない——**決定的な成果物は HTML であって Mermaid ではない**、と明示する。
 
 例 A（[examples.md](../../repo-map-notation/references/examples.md)）の冒頭:
 
@@ -113,8 +105,8 @@ graph TD
 
 ## Figma について
 
-- **Figma API / Figma Skill は描画経路に使わない。** この Skill は DSL から SVG / HTML / Mermaid を出すまでを責務とする。
-- 出力した SVG / HTML を、人が後から Figma などのキャンバスに**貼る**のは自由。だが、それは「人が貼る」工程であって、この Skill が Figma を呼ぶわけではない。Figma を正本や描画先として組み込まない。
+- **Figma API / Figma Skill は描画経路に使わない。** この Skill は DSL から HTML / Mermaid を出すまでを責務とする。
+- 出力した HTML を、人が後から Figma などのキャンバスに**貼る**のは自由。だが、それは「人が貼る」工程であって、この Skill が Figma を呼ぶわけではない。Figma を正本や描画先として組み込まない。
 
 ## 関連
 - レイアウト（座標・帯順）: [layout-algorithm.md](layout-algorithm.md)

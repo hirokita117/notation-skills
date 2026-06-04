@@ -1,4 +1,4 @@
-// svg_emitter.test — 単一 SVG（output-formats.md §1 / theme.md）
+// svg_emitter.test — HTML が埋め込む内部インライン SVG 基盤（html-viewer-contract.md / theme.md）
 
 import { test } from "node:test";
 import assert from "node:assert/strict";

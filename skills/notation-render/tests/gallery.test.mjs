@@ -19,10 +19,8 @@ test("gallery: example-a regenerates byte-identical to live render and committed
 
   assert.equal(story.valid, true);
   // 忠実なラッパ: ライブ render と完全一致（emitter 変更があっても追従するので堅牢）。
-  assert.equal(story.svg, render(dsl, "svg").output);
   assert.equal(story.html, render(dsl, "html", REL_A).output);
   // コミット済みギャラリースナップショットと一致（再生成で差分が出たら気づける）。
-  assert.equal(story.svg, readGallery("example-a.svg"), "gallery/example-a.svg mismatch (rebuild if intended)");
   assert.equal(story.html, readGallery("example-a.html"), "gallery/example-a.html mismatch (rebuild if intended)");
 });
 
@@ -47,7 +45,6 @@ test("buildStory: invalid file -> invalid tag, no render, diagnostics text", () 
   const story = buildStory("invalid", readExample("invalid.dsl"), "skills/notation-render/examples/invalid.dsl");
   assert.equal(story.valid, false);
   assert.ok(story.tags.includes("invalid"));
-  assert.equal(story.svg, null);
   assert.equal(story.html, null);
   assert.match(story.diagnostics, /^error E-/m);
 });
@@ -67,9 +64,7 @@ test("renderIndexHtml: deterministic, version-grouped, parseable data, invalid d
   assert.ok(m, "stories-data JSON blob present");
   const data = JSON.parse(m[1]);
   assert.equal(data["example-a"].valid, true);
-  assert.equal(data["example-a"].svg, "example-a.svg");
   assert.equal(data["example-a"].html, "example-a.html");
   assert.equal(data["invalid"].valid, false);
-  assert.equal(data["invalid"].svg, null);
   assert.ok(data["invalid"].diagnostics.includes("error E-"));
 });

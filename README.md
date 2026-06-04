@@ -15,7 +15,7 @@
 - **決まった記法 = DSL を生成する Skill**（`repo-map-notation`）
 - **その DSL だけを読んで描画する Skill**（`notation-render`）
 
-に役割を分けます。図そのものではなく、**意味層（DSL）を唯一の正本**として扱う設計です。SVG / HTML はそこからの派生物にすぎません。
+に役割を分けます。図そのものではなく、**意味層（DSL）を唯一の正本**として扱う設計です。HTML はそこからの派生物にすぎません。
 
 ---
 
@@ -39,11 +39,11 @@
 |---|-------|------|------------|
 | 1 | [`notation-core`](skills/notation-core/SKILL.md) | 記法中心設計（Notation-first design / MNP）の共通土台・用語・原則 | 設計判断 → 原則 |
 | 2 | [`repo-map-notation`](skills/repo-map-notation/SKILL.md) | リポジトリ構造を `repo-map v1` DSL に落とす（**DSL 生成のみ**） | リポジトリ → DSL テキスト |
-| 3 | [`notation-render`](skills/notation-render/SKILL.md) | DSL **だけ**を読んで図に変換（**決定的レンダリング**） | DSL テキスト → SVG / HTML |
+| 3 | [`notation-render`](skills/notation-render/SKILL.md) | DSL **だけ**を読んで図に変換（**決定的レンダリング**） | DSL テキスト → HTML |
 | ＋ | [`repo-map-interactive-viewer`](skills/repo-map-interactive-viewer/SKILL.md) | 生成済みインタラクティブ HTML をローカル Claude Code とつなぐ対話ビューア（**描画はしない**） | HTML ＋ クリック → ローカル Claude の回答 |
 
-- `repo-map-notation` は **DSL しか出しません**。Mermaid / Figma / SVG を直接は描きません。
-- `notation-render` は **DSL しか受け取りません**。自然言語の要望や口頭のレイアウトから直接 SVG を描くことはしません（不足があれば `repo-map-notation` に戻します）。HTML は既定で `data-*`＋質問パネル付きの**インタラクティブ Viewer** を出します。
+- `repo-map-notation` は **DSL しか出しません**。Mermaid / Figma を直接は描きません。
+- `notation-render` は **DSL しか受け取りません**。自然言語の要望や口頭のレイアウトから直接図を描くことはしません（不足があれば `repo-map-notation` に戻します）。HTML は既定で `data-*`＋質問パネル付きの**インタラクティブ Viewer** を出します。
 - `repo-map-interactive-viewer` は**アドオン**です。生成済み HTML を `127.0.0.1` 限定の Python ブリッジで配信し、ノードをクリックしてローカル Claude Code に質問できるようにします（**完全ローカル・Node.js 不要・Python 標準ライブラリのみ**）。対話は読み取り専用で DSL 正本を変えません。
 - `notation-core` は、初めて触るときと、設計判断に迷ったときに読む土台です。毎回読む必要はありません。
 
@@ -61,7 +61,7 @@
 |------|--------|------|
 | **Skill 対応エージェント** | ✅（plugin 利用時は **Claude Code**） | `SKILL.md` を読んで従う本体。plugin 導入は Claude Code の `/plugin` 系コマンド。Cursor 等へ手動コピーする場合は、そのツールが Agent Skills を読めること。 |
 | **対象リポジトリの読み取り** | `repo-map-notation` 利用時 | エージェントがファイル・依存関係を調べられること（エージェント側のツールに依存）。 |
-| **Web ブラウザ** | HTML / SVG を見るとき | 生成物のプレビュー用。 |
+| **Web ブラウザ** | HTML を見るとき | 生成物のプレビュー用。 |
 
 plugin 導入後、Skill 本文と `skills/**/scripts/` は **`~/.claude/plugins/` 配下のキャッシュ**に置かれます（手動コピーの場合は `~/.claude/skills/` またはプロジェクトの `.claude/skills/`）。エージェントがレンダラーやブリッジを実行するときは、**インストール先の `skills/...` パス**を指します（clone した場合はリポジトリ内の同じ相対パス）。
 
@@ -73,11 +73,11 @@ plugin 導入後、Skill 本文と `skills/**/scripts/` は **`~/.claude/plugins
 |--------------|------------------|
 | DSL だけ作る（`repo-map-notation`） | なし（エージェントのみ） |
 | 設計原則の参照（`notation-core`） | なし |
-| **決定的に** SVG / HTML を出す（`notation-render`・推奨） | **Node.js 18+**（推奨 20+）。`node skills/notation-render/scripts/render_repo_map.mjs ...` |
+| **決定的に** HTML を出す（`notation-render`・推奨） | **Node.js 18+**（推奨 20+）。`node skills/notation-render/scripts/render_repo_map.mjs ...` |
 | インタラクティブ HTML を **bridge** で Claude に質問 | **Python 3**（標準ライブラリのみ）＋ **`claude` CLI** |
 | インタラクティブ HTML を **prompt copy** のみ | ブラウザのみ（ブリッジ・`claude` CLI 不要） |
 
-`notation-render` は、同じ DSL から毎回同じ図にするため **LLM が SVG を手書きするのではなく、同梱レンダラーを実行するのが主経路**です。Node が無い環境ではエージェントが仕様どおり描くこともできますが、決定性・再現性の面では **Node がある環境を推奨**します。
+`notation-render` は、同じ DSL から毎回同じ図にするため **LLM が HTML を手書きするのではなく、同梱レンダラーを実行するのが主経路**です。Node が無い環境ではエージェントが仕様どおり描くこともできますが、決定性・再現性の面では **Node がある環境を推奨**します。
 
 ### Skill ごとの依存（一覧）
 
@@ -291,10 +291,10 @@ Skill 対応のエージェント（Claude Code など）にこれらを読み�
 **2 段目 — DSL を図にする:**
 
 ```
-さっき出力された repo-map DSL を SVG にしてください。
+さっき出力された repo-map DSL を HTML にしてください。
 ```
 
-→ `notation-render` が起動し、その DSL **だけ**を入力に決定的な SVG（必要なら HTML プレビュー）を返します。
+→ `notation-render` が起動し、その DSL **だけ**を入力に決定的な HTML（インタラクティブ Viewer）を返します。
 
 一部だけ深掘りしたいときは「`services/auth` を depth 2 で詳しく」のように 1 段目をやり直し、スコープを絞った新しい DSL を得てから再度描画します。
 
@@ -331,13 +331,13 @@ python3 skills/repo-map-interactive-viewer/scripts/repo_map_local_bridge.py \
 
 ## DSL カタログ（ギャラリー）
 
-`repo-map v1` の代表例を「**DSL 全文 / 生成 HTML（インタラクティブ Viewer・iframe）/ SVG**」で 1 画面比較できる静的ギャラリーを `gallery/` に同梱しています。`gallery/index.html` を **`file://` で開く**だけで、左の一覧（notation バージョンで自動グループ化）から例を選び、右のタブで切り替えられます。Storybook 本体・npm 依存は不要（Node 標準ライブラリのみ・決定的）です。
+`repo-map v1` の代表例を「**DSL 全文 / 生成 HTML（インタラクティブ Viewer・iframe）**」で 1 画面比較できる静的ギャラリーを `gallery/` に同梱しています。`gallery/index.html` を **`file://` で開く**だけで、左の一覧（notation バージョンで自動グループ化）から例を選び、右のタブで切り替えられます。Storybook 本体・npm 依存は不要（Node 標準ライブラリのみ・決定的）です。
 
 **新しい例を足す手順:**
 
 1. `skills/notation-render/examples/` に `*.dsl` を置く（任意で先頭に `# story: 表示名` / `# desc: 一行説明` コメント）。
 2. `node skills/notation-render/scripts/build-gallery.mjs` を実行する。
-3. `gallery/index.html` と各プレビュー（`<id>.svg` / `<id>.html`）が再生成され、一覧に載る。
+3. `gallery/index.html` と各プレビュー（`<id>.html`）が再生成され、一覧に載る。
 4. タグ（layout / focus / invalid）と notation バージョンは自動判定。描画不可な invalid 例は診断（stderr 形式）を表示。
 5. 生成された `gallery/` と新しい `.dsl` をコミットする。
 

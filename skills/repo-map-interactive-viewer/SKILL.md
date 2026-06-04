@@ -33,7 +33,7 @@ DSL 生成は [`repo-map-notation`](../repo-map-notation/SKILL.md) の責務。�
 
 ## 大原則（必ず守る）
 
-- **DSL が正本。** HTML / SVG はその派生物。Viewer 上の対話は理解を助けるだけで、**DSL 正本を
+- **DSL が正本。** HTML はその派生物。Viewer 上の対話は理解を助けるだけで、**DSL 正本を
   書き換えない**。
 - **HTML Viewer は理解補助 UI。** 図に描かれていない意味を、Viewer や Claude の回答で**勝手に
   補完して正本化しない**。

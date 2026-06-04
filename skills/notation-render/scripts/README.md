@@ -1,4 +1,4 @@
-# notation-render scripts — 決定的レンダラー（`repo-map v1` DSL → SVG / HTML / JSON）
+# notation-render scripts — 決定的レンダラー（`repo-map v1` DSL → HTML / JSON）
 
 `repo-map v1` DSL **テキストだけ**を入力に、`parse → validate → layout → emit` をコードで機械的に実行する
 実行可能レンダラー。**同じ DSL からは毎回同じ出力**（乱数・時刻・実行環境差・LLM 判断に依存しない）。
@@ -21,20 +21,17 @@
 ## 使い方（CLI）
 
 ```sh
-# ファイルから SVG（既定）
-node render_repo_map.mjs input.repo-map --format svg > out.svg
-
-# 単体 HTML（インタラクティブ Viewer・ドラッグ可）
+# ファイルから HTML（既定・インタラクティブ Viewer・ドラッグ可）
 node render_repo_map.mjs input.repo-map --format html > out.html
 
 # stdin から内部モデル（JSON）
 cat input.repo-map | node render_repo_map.mjs - --format json
 ```
 
-- `--format svg|html|json|mermaid`（既定 `svg`、`-f` も可）。
-  - `svg` … 単一・自己完結の SVG（**決定的な正典**）。
-  - `html` … SVG を埋め込んだ単体 HTML。凡例・クリック詳細パネル・`Ask Claude Code` / `Copy prompt`・
-    ノードドラッグを含む（契約は html-viewer-contract.md）。生成直後にブラウザで開ける。
+- `--format html|json|mermaid`（既定 `html`、`-f` も可）。
+  - `html` … 単一・自己完結のインタラクティブ HTML（**決定的な正典**）。レイアウト＋テーマから組んだ
+    インライン SVG の図に、凡例・クリック詳細パネル・`Ask Claude Code` / `Copy prompt`・ノードドラッグを
+    含む（契約は html-viewer-contract.md）。生成直後にブラウザで開ける。
   - `json` … `parse → validate → layout` 後の内部モデル `RepoMap`（確認・デバッグ用）。
   - `mermaid` … `graph TD` への機械変換（**任意・正本にしない**。Mermaid が独自に配置するため幾何は非決定）。
 - 入力はファイルパス、または `-`／省略で **stdin**。
@@ -46,7 +43,7 @@ cat input.repo-map | node render_repo_map.mjs - --format json
 
 - `parse` / `validate` / `layout` / `emit` のいずれにも乱数・実行時刻・環境差を入れない。
 - 並び順を決める比較はすべて全順序（最後の決め手はノードのソース順 / エッジの `index`）。
-- 例外は `mermaid` のみ（レイアウトを Mermaid に委ねる）。SVG が決定的な正典。
+- 例外は `mermaid` のみ（レイアウトを Mermaid に委ねる）。HTML が決定的な正典。
 - HTML の**ドラッグは閲覧時の操作のみ**で、出力ファイル＝リロード時の初期レイアウトは決定的レイアウトのまま。
 
 ## モジュール構成（1 責務 1 ファイル＋ facade）
@@ -59,9 +56,9 @@ cat input.repo-map | node render_repo_map.mjs - --format json
 | `validator.mjs` | §7 の意味検査（参照整合・必須キー・規模上限・警告） |
 | `layout.mjs` | 決定的レイアウト（rank / 循環断ち / 最長路 / group / 座標 / エッジ経路） |
 | `theme.mjs` | 固定テーマ定数（色・フォント・寸法）と決定的ラベル省略 |
-| `attrs.mjs` | `data-*` 属性と DSL 抜粋の導出（SVG/HTML 共有） |
-| `svg_emitter.mjs` | 単一 SVG 文字列（決定的正典） |
-| `html_emitter.mjs` | 完全 Viewer（固定テンプレ＋注入 SVG＋ドラッグ） |
+| `attrs.mjs` | `data-*` 属性と DSL 抜粋の導出（インライン SVG／HTML 共有） |
+| `svg_emitter.mjs` | HTML が埋め込むインライン SVG 文字列（内部実装・スタンドアロン出力ではない） |
+| `html_emitter.mjs` | 完全 Viewer（固定テンプレ＋インライン SVG＋ドラッグ・決定的正典） |
 | `mermaid_emitter.mjs` | `graph TD` への機械変換（任意） |
 | `render_repo_map.mjs` | CLI ファサード（引数解析・stdin/file・dispatch・終了コード）＋兄弟再エクスポート |
 | `build-gallery.mjs` | `examples/*.dsl` を走査し決定的に DSL カタログ（リポジトリ直下 `gallery/`）を生成（`render_repo_map` に委譲・stdlib のみ） |
@@ -75,12 +72,12 @@ node --test skills/notation-render/tests/
 ```
 
 少なくとも次を確認する: valid DSL のパース / invalid DSL の error / 同じ DSL から同じ layout /
-同じ DSL から同じ SVG 文字列 / `@layout rank=` の反映 / 未定義ノード参照の error /
+同じ DSL から同じ HTML／インライン SVG 文字列 / `@layout rank=` の反映 / 未定義ノード参照の error /
 コミット済みスナップショット（[`../examples/`](../examples/)）とのバイト一致。
 
 ## DSL カタログ（ギャラリー）
 
-`build-gallery.mjs` は `examples/*.dsl` を走査し、各例の「DSL 全文 / 生成 HTML（iframe）/ SVG」を 1 画面で
+`build-gallery.mjs` は `examples/*.dsl` を走査し、各例の「DSL 全文 / 生成 HTML（iframe）」を 1 画面で
 見比べる静的ギャラリーをリポジトリ直下 `gallery/` に生成する（決定的・`file://` で開ける）。
 
 ```sh
