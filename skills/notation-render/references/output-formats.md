@@ -1,13 +1,13 @@
 # output-formats — SVG / HTML / Mermaid
 
-`emit` 段で出す形式を定める。優先順位は **SVG（既定）> HTML > Mermaid（任意）**。テーマ定数は [layout-algorithm.md](layout-algorithm.md)。
+`emit` 段で出す形式を定める。優先順位は **SVG（既定）> HTML > Mermaid（任意）**。座標は [layout-algorithm.md](layout-algorithm.md)、テーマ定数は [theme.md](theme.md)。
 
 ---
 
 ## 1. SVG（既定・正典）
 
 - **単一ファイルの SVG** を出す。外部参照を持たず、そのまま貼り付け・埋め込みできる自己完結な 1 枚。
-- 中身は [layout-algorithm.md](layout-algorithm.md) の座標とテーマで決まる: ノードは角丸の矩形（kind ごとの塗り）、ラベル＋小さい ID、エッジは直線＋矢頭（階層=実線・依存=破線）、focus は amber の枠。
+- 中身は [layout-algorithm.md](layout-algorithm.md) の座標と [theme.md](theme.md) のテーマで決まる: ノードは角丸の矩形（kind ごとの塗り）、ラベル＋小さい ID、エッジは直線＋矢頭（階層=実線・依存=破線）、focus は amber の枠。
 - `viewBox` はキャンバス幅・高さ（§座標）に合わせる。背景は `#FFFFFF`。
 - **これが決定的な正典**である。同じ DSL からは同じ SVG（同じ座標・同じ色）が出る。
 
@@ -106,6 +106,7 @@ graph TD
 - 出力した SVG / HTML を、人が後から Figma などのキャンバスに**貼る**のは自由。だが、それは「人が貼る」工程であって、この Skill が Figma を呼ぶわけではない。Figma を正本や描画先として組み込まない。
 
 ## 関連
-- レイアウトとテーマ: [layout-algorithm.md](layout-algorithm.md)
+- レイアウト（座標・帯順）: [layout-algorithm.md](layout-algorithm.md)
+- テーマ（色・フォント）: [theme.md](theme.md)
 - 入力契約: [render-contract.md](render-contract.md)
 - 入力 DSL の例: [repo-map-notation/references/examples.md](../../repo-map-notation/references/examples.md)

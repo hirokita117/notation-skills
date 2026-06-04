@@ -67,7 +67,8 @@ Figma API / Figma Skill は**使わない**。出力先として人が後から 
 | ファイル | 中身 | いつ読む |
 |----------|------|----------|
 | [references/render-contract.md](references/render-contract.md) | 受付 notation・バージョン分岐・パイプライン・検証ゲート | 入力の扱いを決めるとき |
-| [references/layout-algorithm.md](references/layout-algorithm.md) | 決定的レイアウト＋テーマ定数（固定 hex） | 配置・色を出すとき |
+| [references/layout-algorithm.md](references/layout-algorithm.md) | 決定的レイアウト（rank / group / 座標） | 配置を出すとき |
+| [references/theme.md](references/theme.md) | テーマ定数（kind ごとの色・フォント・固定 hex） | 色・文字体裁を出すとき |
 | [references/output-formats.md](references/output-formats.md) | SVG / HTML / Mermaid の出し方、Figma 不使用 | 形式を選ぶとき |
 
 ## 関連スキル

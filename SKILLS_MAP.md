@@ -51,7 +51,8 @@
 | 検証コードと重大度・上限（ノード ≤ 40 / エッジ ≤ 80 / 有意行 ≤ 200） | `repo-map-notation/references/grammar.md` | `notation-render/references/render-contract.md`（描画前ゲート） |
 | 内部モデル `RepoMap` の形 | `repo-map-notation/references/grammar.md` | `notation-render/references/render-contract.md` |
 | 描画パイプライン名 `parse → validate → layout → emit` | `notation-render/references/render-contract.md` | `notation-render`（parse/validate の語彙は `notation-core` の同期ループに由来） |
-| 決定的レイアウトとテーマ定数（固定 hex） | `notation-render/references/layout-algorithm.md` | `repo-map-notation`（サンプル描画の見た目を語るとき） |
+| 決定的レイアウト（rank / group / 座標・寸法定数） | `notation-render/references/layout-algorithm.md` | `repo-map-notation`（サンプル描画の配置を語るとき） |
+| テーマ定数（kind ごとの色・フォント・固定 hex） | `notation-render/references/theme.md` | `repo-map-notation`（サンプル描画の色を語るとき） |
 | インタラクティブ HTML 契約（`data-*` スキーマ／`/api/ask` JSON 形／フォールバック） | `repo-map-interactive-viewer/references/html-viewer-contract.md` | `notation-render`（インタラクティブ HTML を出すとき） |
 
 ルール: **`repo-map v1` の文法・列挙・検証は `repo-map-notation/references/grammar.md` が唯一の正本**。`notation-render` は「文法・列挙・検証コードは grammar.md v1 を normative とする」と宣言し、再定義しない。`notation-core` は思想・用語・一般原則だけを持ち、具体値は持たない。
