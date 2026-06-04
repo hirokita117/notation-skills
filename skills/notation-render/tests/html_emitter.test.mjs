@@ -50,14 +50,18 @@ test("layout: diagram pane stacks above the full-width panel and is resizable", 
   assert.ok(h.includes(".panel { width: 100%; min-width: 0;"));
 });
 
-test("diagram canvas grows with pane resize and dragged node bounds", () => {
+test("diagram canvas grows with pane resize and clamps dragged nodes inside it", () => {
   const h = htmlOf("example-a.dsl");
   assert.ok(h.includes('var diagramPane = document.querySelector(".diagram-pane");'));
-  assert.ok(h.includes("function syncCanvasToPane(extraBox)"));
+  assert.ok(h.includes("function syncCanvasToPane()"));
   assert.ok(h.includes('svg.setAttribute("viewBox", "0 0 " + canvas.w + " " + canvas.h);'));
   assert.ok(h.includes('backgroundRect.setAttribute("width", String(canvas.w));'));
   assert.ok(h.includes('backgroundRect.setAttribute("height", String(canvas.h));'));
-  assert.ok(h.includes("syncCanvasToPane({ right: nx + NODE_W, bottom: ny + NODE_H });"));
+  assert.ok(h.includes("function clampNodePosition(x, y)"));
+  assert.ok(h.includes("x: clamp(x, 0, Math.max(0, canvas.w - NODE_W))"));
+  assert.ok(h.includes("y: clamp(y, 0, Math.max(0, canvas.h - NODE_H))"));
+  assert.ok(h.includes("var next = clampNodePosition(Math.round(origX + dx), Math.round(origY + dy));"));
+  assert.ok(!h.includes("syncCanvasToPane({ right: nx + NODE_W, bottom: ny + NODE_H });"));
   assert.ok(h.includes('typeof ResizeObserver !== "undefined"'));
   assert.ok(h.includes('window.addEventListener("resize", function () { syncCanvasToPane(); });'));
 });

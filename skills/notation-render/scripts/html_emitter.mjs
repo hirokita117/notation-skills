@@ -538,7 +538,6 @@ const SCRIPT = String.raw`(function () {
   var focusFrame = svg ? svg.querySelector(".focus-frame") : null;
   var NODE_W = 160, NODE_H = 48; // layout-algorithm.md §4（固定）
   var DRAG_THRESHOLD = 3;
-  var CANVAS_GUTTER = 24;
 
   function initialCanvasSize() {
     if (!svg) return { w: 0, h: 0 };
@@ -579,15 +578,11 @@ const SCRIPT = String.raw`(function () {
     };
   }
 
-  function syncCanvasToPane(extraBox) {
+  function syncCanvasToPane() {
     if (!svg) return;
     var pane = paneContentSize();
     var nextW = Math.max(initialCanvas.w, canvas.w, Math.ceil(pane.w));
     var nextH = Math.max(initialCanvas.h, canvas.h, Math.ceil(pane.h));
-    if (extraBox) {
-      nextW = Math.max(nextW, Math.ceil(extraBox.right + CANVAS_GUTTER));
-      nextH = Math.max(nextH, Math.ceil(extraBox.bottom + CANVAS_GUTTER));
-    }
     if (nextW === canvas.w && nextH === canvas.h) return;
     canvas.w = nextW; canvas.h = nextH;
     svg.setAttribute("width", String(canvas.w));
@@ -597,6 +592,17 @@ const SCRIPT = String.raw`(function () {
       backgroundRect.setAttribute("width", String(canvas.w));
       backgroundRect.setAttribute("height", String(canvas.h));
     }
+  }
+
+  function clamp(v, min, max) {
+    return Math.min(Math.max(v, min), max);
+  }
+
+  function clampNodePosition(x, y) {
+    return {
+      x: clamp(x, 0, Math.max(0, canvas.w - NODE_W)),
+      y: clamp(y, 0, Math.max(0, canvas.h - NODE_H))
+    };
   }
 
   var pos = {};
@@ -660,9 +666,10 @@ const SCRIPT = String.raw`(function () {
       var dx = p.x - startX, dy = p.y - startY;
       if (!moved && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) moved = true;
       if (!moved) return;
-      var nx = Math.round(origX + dx), ny = Math.round(origY + dy);
+      syncCanvasToPane();
+      var next = clampNodePosition(Math.round(origX + dx), Math.round(origY + dy));
+      var nx = next.x, ny = next.y;
       pos[id].x = nx; pos[id].y = ny;
-      syncCanvasToPane({ right: nx + NODE_W, bottom: ny + NODE_H });
       g.setAttribute("transform", "translate(" + nx + "," + ny + ")");
       redrawEdges(id);
     });
