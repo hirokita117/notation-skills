@@ -1,7 +1,7 @@
 {
   "name": "notation-skills",
   "description": "巨大リポジトリを固定ルールの DSL（repo-map v1）を正本として地図化する Agent Skills 集。DSL 生成（repo-map-notation）と決定的レンダリング（notation-render）を分離し、共通土台（notation-core）で支える。生成済み HTML をローカル Claude Code とつなぐ対話ビューア（repo-map-interactive-viewer）も同梱。",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "author": { "name": "hirokita117" },
   "homepage": "https://github.com/hirokita117/notation-skills",
   "repository": "https://github.com/hirokita117/notation-skills",
