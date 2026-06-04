@@ -25,6 +25,69 @@
 
 ---
 
+## 設計意図の確認（4 軸）と AskUserQuestion
+
+ビューは「何を見せたいか」で決まる。DSL を書く前に、次の **4 軸**を [SKILL.md](../SKILL.md) の
+STEP 0 で確認する。曖昧なら **AskUserQuestion** ツールでユーザーに問い、明示済み／自明なら前提を
+述べて進む。
+
+- **(a) 見たい描画・観点**: どのビューで見せたいか（外周／依存の中心／処理経路／配置 …）。
+- **(b) 避けたい描画・観点**: 例「ただの階層＋import で終わらせたくない」「全パッケージ網羅は不要」「内部詳細は省きたい」。
+- **(c) 強調したい関係**: `calls` / `imports` / `owns`・`reads` / `deploys` / `contains`。
+- **(d) 出力用途・読者**: オンボーディング / SRE・インフラ / 変更影響範囲 / 機能着手。
+
+### 問う / 黙って進める の RULE
+
+- **問う条件**: (1) AskUserQuestion が利用可能、かつ (2) 成功条件からビューが一意に逆引きできず
+  曖昧なとき。両方を満たすときだけ問う。**曖昧な軸だけ**を聞く（4 軸を毎回全部聞かない）。
+- **黙って進める条件**: ユーザーが観点／relation／用途を指定済み、または成功条件からビューが自明な
+  とき。問わずに進め、**採用した前提を 1 文で明示**する（例:「どのサービスが DB を読むかが成功条件なので
+  Data Ownership View を選びました」）。ツールが無い環境では最尤のビューを選び前提を明示する。
+- **質問設計の制約**: 各 question のオプションは **2〜4 個**に絞る（8 ビュー全部は出さない。高シグナルな
+  観点だけ出し、Feature Slice / Monorepo Workspace 等は用途・depth の答えから自動採用する）。
+  **`multiSelect: true` は (a) 見たい観点 と (c) 強調する関係 のみ**。(b) 避けたい観点・(d) 出力用途 は単一選択。
+
+### AskUserQuestion 質問テンプレ（repo-map）
+
+| 軸 | header（≤12字） | multiSelect | オプション例（label: 説明 → 対応ビュー） |
+|----|------------------|-------------|--------------------------------------------|
+| (a) | `見たい観点` | ✓ | 外周・外部依存（System Boundary）／依存の中心（Dependency Hub）／処理経路（Request Flow）／配置・デプロイ（Deployment）／データ所有（Data Ownership）／レイヤリング（Layered） |
+| (b) | `避けたい観点` | — | ただの階層+import は不要（Monorepo を既定にしない）／全パッケージ網羅は不要（Feature Slice へ）／内部詳細は省く（depth 0〜1 維持）／特になし |
+| (c) | `強調する関係` | ✓ | 呼び出し経路: `calls`／コード依存: `imports`／データ所有・越境read: `owns`/`reads`／配置: `deploys` |
+| (d) | `出力用途` | — | オンボーディング（→ System Boundary / Monorepo, depth 0〜1）／SRE・インフラ（→ Deployment）／影響範囲調査（→ Dependency Hub）／機能着手（→ Feature Slice） |
+
+**逆引きの手順**: (a) で候補を出す → (b) で除外する（特に罠ビュー Monorepo Workspace を排除）→
+(c) で候補を絞る → (d) で `depth` と `focus` の既定を決める。
+
+### 出力用途 → おすすめビュー
+
+| 出力用途 | おすすめビュー | だいたいの depth |
+|----------|----------------|------------------|
+| オンボーディング / 全体像 | System Boundary / Monorepo Workspace | 0〜1 |
+| SRE・インフラ視点 | Deployment | 0〜1 |
+| 変更影響範囲の調査 | Dependency Hub | 1 |
+| 処理がどこを通るか | Request Flow | 1〜2 |
+| データの所有・越境read 監査 | Data Ownership | 1 |
+| レイヤリング検証 | Layered Architecture | 1〜2 |
+| 1 機能の着手 | Feature Slice | 1〜2 |
+
+### 強調したい関係 → ビュー
+
+| 強調したい relation | 主なビュー |
+|---------------------|-----------|
+| `calls` | Request Flow / Feature Slice |
+| `imports` | Dependency Hub / Monorepo Workspace |
+| `owns` + `reads` | Data Ownership |
+| `deploys` | Deployment |
+| `contains`（構成） | System Boundary / Monorepo Workspace |
+
+> 既存の 8 ビューで、全 `kind`・全 `relation` を主役として網羅できている（`contains`→System Boundary /
+> Monorepo / Layered、`deploys`→Deployment、`owns`+`reads`→Data Ownership、`imports`→Dependency Hub /
+> Layered / Monorepo、`calls`→Request Flow / Feature Slice）。新しいビューは足さない——9 つ目は
+> Feature Slice / Dependency Hub と重複し、カタログを薄めるだけになる。
+
+---
+
 ## ビューの選び方（ミニ判断ガイド）
 
 STEP 0 の成功条件（「何が分かれば成功か」）から**逆引き**する。
@@ -177,3 +240,4 @@ focus strategy（focus 戦略）/ layout strategy（レイアウト戦略）/ av
 - どの例がどのビューか（入出力例）: [examples.md](examples.md)
 - 生成手順でのビュー選択: [SKILL.md](../SKILL.md) の STEP 3（ビュー選択）
 - 設計思想（意味層とレイアウトの分離）: [notation-core](../../notation-core/SKILL.md)
+- ドキュメント版のビューパターン: [document-map-notation/references/view-patterns.md](../../document-map-notation/references/view-patterns.md)

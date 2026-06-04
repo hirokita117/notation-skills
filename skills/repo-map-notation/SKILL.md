@@ -52,6 +52,12 @@ DSL を書き始める前に、次を**ユーザーと合意**する。ここを
 - **depth**: どの粒度まで（0 / 1 / 2）。
 - **除外**: `node_modules`, `dist`, `build`, 生成物, ベンダ等。
 - **読者と成功条件**: 誰のための地図か（自分 / チーム / オンボーディング）、そして**「何が分かれば成功か」**（例: 「どのサービスが DB を読むかが一目で分かる」）。
+- **設計意図（描画の観点）**: 次の 4 軸を確認する。これが STEP 3 のビュー選択を左右する。
+  - (a) **見たい描画・観点**（どのビューで見せたいか：外周／依存の中心／処理経路／配置／データ所有 …）。
+  - (b) **避けたい描画・観点**（例: ただの階層＋import で終わらせたくない／全パッケージ網羅は不要／内部詳細は省きたい）。
+  - (c) **強調したい関係**（`calls` / `imports` / `owns`・`reads` / `deploys` / `contains`）。
+  - (d) **出力用途・読者**（オンボーディング / SRE・インフラ / 変更影響範囲 / 機能着手）。
+- **曖昧なら問う**: 4 軸が曖昧で **AskUserQuestion ツールが使える**なら、曖昧な軸だけを問う（黙って既定に寄せない）。明示済み／自明なら問わずに進め、**採用した前提を 1 文で明示**する。軸とビューの対応・質問テンプレ・問う/進める RULE は [references/view-patterns.md](references/view-patterns.md)。
 
 ### STEP 1 — 事実収集
 
@@ -74,7 +80,7 @@ DSL を書き始める前に、次を**ユーザーと合意**する。ここを
 
 抽象化したノード・エッジを DSL にする前に、**どの「ビュー」で見せるかを 1 つ決める**。同じ閉じた文法でも、選ぶ `kind`/`relation`・`focus`・`@layout` の使い方で地図は別物になる。ここを飛ばすと、毎回「階層（`contains`）＋ import 依存（`imports`）」の同じ形に無意識に落ち、STEP 0 で決めた「何が分かれば成功か」に答えない地図になる。
 
-- **パターンを 1 つ選ぶ**（または、明示的に理由を述べた上でのハイブリッド）。カタログは [references/view-patterns.md](references/view-patterns.md)。STEP 0 の成功条件から**逆引き**する（例: 「どのサービスが DB を読むか」→ Data Ownership View）。
+- **パターンを 1 つ選ぶ**（または、明示的に理由を述べた上でのハイブリッド）。カタログは [references/view-patterns.md](references/view-patterns.md)。STEP 0 の成功条件と 4 軸（見たい／避けたい観点・強調する関係・出力用途）から**逆引き**する（例: 「どのサービスが DB を読むか」→ Data Ownership View）。観点が曖昧で AskUserQuestion ツールが使えるなら、STEP 0 で問うてから選ぶ。
 - **選んだパターンに合わせて選択を写す**: そのパターンの「ノード選択／エッジ選択」に従い、使う `kind` と `relation` の部分集合を絞る。`focus` の当て先と `@layout`（`rank=`/`group=`）の使い方も、そのパターンの戦略に合わせる。
 - **「階層＋ import」への無意識な既定化を避ける**。それは Monorepo Workspace View という 1 つの選択肢にすぎない。`owns`/`deploys`/`reads`/`calls` を主役にするビューを意図的に検討する。
 - ハイブリッドにする場合は「なぜ 2 つのビューを混ぜるか」を 1 文で根拠づけてから進む。
@@ -107,7 +113,7 @@ DSL を書き始める前に、次を**ユーザーと合意**する。ここを
 |----------|------|----------|
 | [references/grammar.md](references/grammar.md) | `repo-map v1` の正式文法・内部モデル・検証コード（**正本**） | DSL を書く・検証する全ての場面 |
 | [references/scope-and-depth.md](references/scope-and-depth.md) | depth 0/1/2 の選び方、リポジトリ類型別ガイド | STEP 0 で粒度に迷ったとき |
-| [references/view-patterns.md](references/view-patterns.md) | 固定文法のまま「見せ方」を変える 8 つのビューパターン（intent / 適する場面 / ノード・エッジ選択 / focus・レイアウト戦略 / 避けること） | STEP 3 でどのビューにするか選ぶとき |
+| [references/view-patterns.md](references/view-patterns.md) | 固定文法のまま「見せ方」を変える 8 つのビューパターン（intent / 適する場面 / ノード・エッジ選択 / focus・レイアウト戦略 / 避けること）＋設計意図 4 軸の AskUserQuestion テンプレ | STEP 0 で観点を確認し、STEP 3 でどのビューにするか選ぶとき |
 | [references/examples.md](references/examples.md) | 架空リポジトリの入力 → 出力 DSL 全文（4 例・各ビュー別） | 出力の形を確認したいとき |
 
 ## 関連スキル
