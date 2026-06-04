@@ -25,7 +25,7 @@ HTML は **インタラクティブ Viewer を既定**として出す。SVG（§
 2. **凡例（固定マークアップ・DSL 非依存）**:
    - kind 6 種の色見本と名前（system / package / module / file-group / external / datastore）。順序は [grammar.md §5](../../repo-map-notation/references/grammar.md) の列挙順に固定。
    - 線種の説明: 「実線 = 構造（contains / deploys / owns）」「破線 = 依存（imports / calls / reads）」。
-3. **質問サイドパネル（固定マークアップ）**: クリックしたノードの id / label / kind / path /
+3. **質問パネル（固定マークアップ）**: 図エリアの下に配置し、クリックしたノードの id / label / kind / path /
    related edges / DSL excerpt と、質問入力欄＋`Ask Claude Code`／`Copy prompt for Claude Code` ボタン。
    bridge モードではさらに **model / effort 選択 `<select>`**（先頭が `(default)`。選択肢は `/api/health` の
    `availableModels` / `availableEfforts` から動的に埋め、初期選択は `defaultModel` / `defaultEffort`。
@@ -54,7 +54,7 @@ SVG（§1）は引き続き**決定的な正典**で、HTML はそれを使う�
 [html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md) の
 「ドキュメントの DSL 正本パス」を参照。
 
-HTML Viewer は閲覧時に**ノードのドラッグ移動**にも対応してよい（掴んで動かすと接続線とラベル・ID が追従する）。これは view-time の表示操作のみで、`data-*` の導出にも出力ファイルの決定性にも影響しない（リロードで初期レイアウトに戻る）。属性スキーマは [html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md) の「ドラッグ用属性」を参照。
+HTML Viewer は閲覧時に**ノードのドラッグ移動**にも対応してよい（掴んで動かすと接続線とラベル・ID が追従する）。図エリアは質問パネルの上に置き、`resize` 可能なスクロール領域として広げられるようにする。これは view-time の表示操作のみで、`data-*` の導出にも出力ファイルの決定性にも影響しない（リロードで初期レイアウトに戻る）。属性スキーマは [html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md) の「ドラッグ用属性」を参照。
 
 **責務の外**: Claude Code CLI 呼び出し・Python ブリッジ本体・起動手順は **この Skill の責務ではない**。
 それらは [`repo-map-interactive-viewer`](../../repo-map-interactive-viewer/SKILL.md) が担当する。

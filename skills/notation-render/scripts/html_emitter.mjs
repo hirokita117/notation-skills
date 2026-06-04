@@ -45,10 +45,10 @@ export function emitHtml(repoMap, layout, options = {}) {
     "<body>",
     HEADER,
     '<div class="layout">',
-    "  <div>",
+    '  <section class="diagram-pane" aria-label="repo-map diagram">',
     svg.replace(/\n+$/, ""), // SVG を逐語埋め込み（ノードブロックを単体 SVG とバイト一致させる）
     LEGEND,
-    "  </div>",
+    "  </section>",
     PANEL,
     "</div>",
     OVERLAY,
@@ -74,14 +74,16 @@ const STYLE = `  :root {
   header { padding: 12px 16px; border-bottom: 1px solid var(--border); }
   header h1 { font-size: 15px; margin: 0; }
   header .mode { font-size: 12px; color: var(--muted); margin-top: 4px; }
-  .layout { display: flex; align-items: flex-start; gap: 16px; padding: 16px; flex-wrap: wrap; }
-  .diagram { border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+  .layout { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+  .diagram-pane { width: 100%; height: min(72vh, 720px); min-height: 360px; min-width: 300px;
+    resize: both; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff; padding: 8px; }
+  .diagram { display: block; background: #fff; }
   .node { cursor: pointer; }
   .node:hover rect { stroke: var(--focus); stroke-width: 3; }
   .node.selected rect { stroke: var(--focus); stroke-width: 3; }
   .legend { font-size: 12px; color: var(--muted); padding: 8px 4px; }
   .legend span.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin: 0 4px 0 10px; }
-  .panel { width: 380px; min-width: 300px; flex: 1 1 320px; border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .panel { width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
   .panel h2 { font-size: 13px; margin: 0 0 8px; }
   .panel .empty { color: var(--muted); font-size: 13px; }
   .field { margin: 6px 0; font-size: 13px; }
