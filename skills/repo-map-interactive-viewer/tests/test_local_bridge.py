@@ -462,13 +462,14 @@ class _LiveServerCase(unittest.TestCase):
         self.port = self.server.server_address[1]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
-        self._orig_run_claude = bridge.run_claude
+        # ハンドラは bridge_claude.run_claude を module 修飾で呼ぶので、差し替えも同じ場所で行う。
+        self._orig_run_claude = bridge.bridge_claude.run_claude
         if run_claude_fn is not None:
-            bridge.run_claude = run_claude_fn
+            bridge.bridge_claude.run_claude = run_claude_fn
 
     def tearDown(self):
         if hasattr(self, "_orig_run_claude"):
-            bridge.run_claude = self._orig_run_claude
+            bridge.bridge_claude.run_claude = self._orig_run_claude
         if hasattr(self, "server"):
             self.server.shutdown()
             self.server.server_close()

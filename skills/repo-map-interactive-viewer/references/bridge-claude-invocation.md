@@ -1,8 +1,9 @@
 # bridge-claude-invocation — プロンプト整形と claude 呼び出し
 
-本体: [`../scripts/repo_map_local_bridge.py`](../scripts/repo_map_local_bridge.py)。`/api/ask` で受けた
-ノード情報＋質問を、日本語プロンプトに整形（`build_prompt`）し、安全寄りの固定フラグで `claude` の
-argv を組み立てて（`build_claude_argv`）呼び出すまでの規則。起動引数・エンドポイント一覧は
+本体: プロンプト整形（`build_prompt`）は [`../scripts/bridge_prompt.py`](../scripts/bridge_prompt.py)、
+argv 組み立て・呼び出し（`build_claude_argv` / `run_claude`）は [`../scripts/bridge_claude.py`](../scripts/bridge_claude.py)。
+`/api/ask` で受けたノード情報＋質問を、日本語プロンプトに整形（`build_prompt`）し、安全寄りの固定フラグで
+`claude` の argv を組み立てて（`build_claude_argv`）呼び出すまでの規則。起動引数・エンドポイント一覧は
 [local-bridge.md](local-bridge.md)、リクエスト/レスポンスの JSON 形は
 [html-viewer-contract.md](html-viewer-contract.md) を正本とする。
 

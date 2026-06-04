@@ -103,9 +103,18 @@ DSL 生成は [`repo-map-notation`](../repo-map-notation/SKILL.md) の責務。�
 
 ## scripts
 
+標準ライブラリのみの localhost ブリッジは責務ごとに分割している（エントリは
+`repo_map_local_bridge.py`。起動方法・パス・公開 API は不変）。
+
 | ファイル | 役割 |
 |----------|------|
-| [scripts/repo_map_local_bridge.py](scripts/repo_map_local_bridge.py) | 標準ライブラリのみの localhost ブリッジ本体 |
+| [scripts/repo_map_local_bridge.py](scripts/repo_map_local_bridge.py) | エントリ兼ファサード。CLI 引数の解釈とサーバ起動。兄弟モジュールを束ねる |
+| [scripts/bridge_config.py](scripts/bridge_config.py) | 既定値・上限・`BridgeConfig` |
+| [scripts/bridge_prompt.py](scripts/bridge_prompt.py) | ノード情報＋質問の Claude Code 用プロンプト整形（`build_prompt`） |
+| [scripts/bridge_claude.py](scripts/bridge_claude.py) | `claude -p` の argv 組み立て・呼び出し（`build_claude_argv` / `run_claude`） |
+| [scripts/bridge_validation.py](scripts/bridge_validation.py) | 入力の刈り込み・許可リスト・repo-root ジェイル（`validate_ask_payload` / `within_repo_root`） |
+| [scripts/bridge_http.py](scripts/bridge_http.py) | 127.0.0.1 限定の HTTP ハンドラとセッション状態を持つサーバ（`BridgeHandler` / `BridgeServer`） |
+| [scripts/bridge_reclaim.py](scripts/bridge_reclaim.py) | 起動時に同ポートの古い自分のブリッジを掃除（`reclaim_port`）と SIGTERM 設定 |
 | [scripts/open_repo_map_viewer.command](scripts/open_repo_map_viewer.command) | macOS 用ワンクリック起動（python 探索 → ブリッジ起動 → ブラウザ起動） |
 
 ## 禁止事項

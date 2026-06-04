@@ -1,6 +1,7 @@
 # bridge-session-and-reclaim — 会話継続と起動時 reclaim
 
-本体: [`../scripts/repo_map_local_bridge.py`](../scripts/repo_map_local_bridge.py)。ブリッジの 2 つの
+本体: セッション継続（`/api/ask` ↔ `/api/reset`・`BridgeServer`）は [`../scripts/bridge_http.py`](../scripts/bridge_http.py)、
+起動時 reclaim（`reclaim_port`）は [`../scripts/bridge_reclaim.py`](../scripts/bridge_reclaim.py)。ブリッジの 2 つの
 ランタイム挙動 — 同一起動中の質問を 1 つの Claude 会話として継続する仕組みと、起動時に古い自分の
 ブリッジを掃除してポートを空ける仕組み。起動引数・エンドポイント一覧は [local-bridge.md](local-bridge.md)、
 安全方針は [security.md](security.md) を参照。
