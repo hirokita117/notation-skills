@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>repo-map DSL カタログ</title>
+<style>
+  :root { --fg:#111827; --muted:#6B7280; --border:#E5E7EB; --bg:#F9FAFB; --accent:#2563EB;
+    --font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:var(--font); color:var(--fg); background:var(--bg); }
+  header { padding:14px 20px; border-bottom:1px solid var(--border); background:#fff; }
+  header h1 { margin:0; font-size:18px; }
+  header .sub { margin:4px 0 0; font-size:13px; color:var(--muted); }
+  .app { display:flex; align-items:stretch; min-height: calc(100vh - 64px); }
+  .sidebar { width:340px; flex:0 0 340px; border-right:1px solid var(--border); background:#fff;
+    overflow:auto; padding:8px 0; }
+  .group { margin:0 0 6px; }
+  .group h2 { font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted);
+    margin:10px 16px 4px; }
+  .group ul { list-style:none; margin:0; padding:0; }
+  .story-btn { display:block; width:100%; text-align:left; border:0; background:transparent;
+    border-left:3px solid transparent; padding:8px 14px; cursor:pointer; font-family:inherit; }
+  .story-btn:hover { background:var(--bg); }
+  .story-btn.active { background:#EFF6FF; border-left-color:var(--accent); }
+  .st-title { display:block; font-size:13px; font-weight:600; }
+  .st-desc { display:block; font-size:11px; color:var(--muted); margin-top:2px; }
+  .st-tags { display:block; margin-top:4px; }
+  .tag { display:inline-block; font-size:10px; padding:1px 6px; border-radius:999px; margin-right:4px;
+    background:#F3F4F6; color:#374151; border:1px solid var(--border); }
+  .tag-layout { background:#ECFDF5; color:#065F46; border-color:#A7F3D0; }
+  .tag-focus { background:#FFFBEB; color:#92400E; border-color:#FDE68A; }
+  .tag-invalid { background:#FEF2F2; color:#991B1B; border-color:#FECACA; }
+  .detail { flex:1 1 auto; display:flex; flex-direction:column; min-width:0; padding:16px; }
+  .detail-head { font-size:14px; font-weight:600; margin:0 0 8px; }
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:12px; }
+  .tab-btn { border:0; background:transparent; padding:8px 12px; cursor:pointer; font-family:inherit;
+    font-size:13px; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tab-btn:hover { color:var(--fg); }
+  .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+  .tab-btn[hidden] { display:none; }
+  .pane { display:none; }
+  .pane.active { display:block; }
+  .preview-frame { width:100%; height:740px; border:1px solid var(--border); border-radius:8px; background:#fff; }
+  .svg-wrap { border:1px solid var(--border); border-radius:8px; background:#fff; padding:12px; overflow:auto; }
+  .svg-wrap img { display:block; max-width:100%; height:auto; }
+  pre.code { border:1px solid var(--border); border-radius:8px; background:#fff; padding:12px;
+    font-family:var(--mono); font-size:12px; line-height:1.5; overflow:auto; white-space:pre; margin:0; }
+  pre.diag { color:#991B1B; }
+</style>
+</head>
+<body>
+<header>
+  <h1>repo-map DSL カタログ</h1>
+  <p class="sub">repo-map v1 の代表例を「DSL 全文 / 生成 HTML / SVG」で見比べる。左で例を選び、右のタブで切り替え。</p>
+</header>
+<div class="app">
+  <nav class="sidebar">
+    <section class="group">
+      <h2>repo-map v1</h2>
+      <ul>
+      <li><button class="story-btn" data-id="example-a"><span class="st-title">example-a</span><span class="st-desc">root=. · depth=1 · 8 nodes / 12 edges · focus=core</span><span class="st-tags"><span class="tag tag-focus">focus</span></span></button></li>
+      <li><button class="story-btn" data-id="example-b"><span class="st-title">1 サービスの深掘り（depth 2・9 ノード）</span><span class="st-desc">auth サービス内部を file-group/module 粒度で。handlers→usecases→repo の呼び出しと、DB/Redis/OAuth への依存先。</span><span class="st-tags"><span class="tag tag-focus">focus</span></span></button></li>
+      <li><button class="story-btn" data-id="invalid"><span class="st-title">invalid</span><span class="st-desc">3 件のエラー（描画不可）</span><span class="st-tags"><span class="tag tag-invalid">invalid</span></span></button></li>
+      <li><button class="story-btn" data-id="layout-demo"><span class="st-title">layout-demo</span><span class="st-desc">root=services/auth · depth=2 · 5 nodes / 6 edges · focus=handlers</span><span class="st-tags"><span class="tag tag-layout">layout</span><span class="tag tag-focus">focus</span></span></button></li>
+      </ul>
+    </section>
+  </nav>
+  <main class="detail">
+    <div class="detail-head" id="detail-title"></div>
+    <div class="tabs">
+      <button class="tab-btn" data-tab="preview">Preview HTML</button>
+      <button class="tab-btn" data-tab="svg">SVG</button>
+      <button class="tab-btn" data-tab="dsl">DSL source</button>
+      <button class="tab-btn" data-tab="diag">Diagnostics</button>
+    </div>
+    <div class="panes">
+      <div class="pane" data-pane="preview"><iframe class="preview-frame" id="preview" title="repo-map HTML preview"></iframe></div>
+      <div class="pane" data-pane="svg"><div class="svg-wrap"><img id="svg-img" alt="repo-map SVG"></div></div>
+      <div class="pane" data-pane="dsl"><pre class="code" id="dsl-pre"></pre></div>
+      <div class="pane" data-pane="diag"><pre class="code diag" id="diag-pre"></pre></div>
+    </div>
+  </main>
+</div>
+<script type="application/json" id="stories-data">{"example-a":{"title":"example-a","version":"repo-map v1","tags":["focus"],"valid":true,"dsl":"# repo-map v1\n@meta\n  root: .\n  depth: 1\n  focus: core\n  generated: 2026-06-03T09:00:00Z\n\n@nodes\n  monorepo  system    \"Acme Platform\"\n  web       package   \"Web App\"          apps/web\n  mobile    package   \"Mobile App\"       apps/mobile\n  core      package   \"Shared Core\"      packages/core\n  authsvc   package   \"Auth Service\"     services/auth\n  billsvc   package   \"Billing Service\"  services/billing\n  db        datastore Postgres\n  email     external  \"Email Provider\"\n\n@edges\n  monorepo  web      contains\n  monorepo  mobile   contains\n  monorepo  core     contains\n  monorepo  authsvc  contains\n  monorepo  billsvc  contains\n  web       core     imports\n  mobile    core     imports\n  authsvc   core     imports\n  billsvc   core     imports\n  authsvc   db       reads\n  billsvc   db       reads\n  billsvc   email    calls\n","svg":"example-a.svg","html":"example-a.html","diagnostics":null},"example-b":{"title":"1 サービスの深掘り（depth 2・9 ノード）","version":"repo-map v1","tags":["focus"],"valid":true,"dsl":"# repo-map v1\n# story: 1 サービスの深掘り（depth 2・9 ノード）\n# desc: auth サービス内部を file-group/module 粒度で。handlers→usecases→repo の呼び出しと、DB/Redis/OAuth への依存先。\n@meta\n  root: services/auth\n  depth: 2\n  focus: handlers\n  generated: 2026-06-03T09:30:00Z\n\n@nodes\n  authsvc   package    \"Auth Service\"     services/auth\n  handlers  file-group \"HTTP Handlers\"    src/handlers\n  usecases  file-group \"Use Cases\"        src/usecases\n  repo      file-group \"Repositories\"     src/repo\n  tokens    module     \"Token Library\"    src/tokens\n  config    file-group Config             src/config\n  db        datastore  Postgres\n  cache     datastore  Redis\n  oauth     external   \"OAuth Provider\"\n\n@edges\n  authsvc   handlers  contains\n  authsvc   usecases  contains\n  authsvc   repo      contains\n  authsvc   tokens    contains\n  authsvc   config    contains\n  handlers  usecases  calls\n  usecases  repo      calls\n  usecases  tokens    imports\n  repo      db        reads\n  repo      cache     reads\n  handlers  oauth     calls\n  tokens    config    imports\n","svg":"example-b.svg","html":"example-b.html","diagnostics":null},"invalid":{"title":"invalid","version":"repo-map v1","tags":["invalid"],"valid":false,"dsl":"# repo-map v1\n@meta\n  root: .\n  depth: 3\n  generated: 2026-06-03T09:00:00Z\n\n@nodes\n  web package \"Web App\" apps/web\n  api package \"API\"\n\n@edges\n  web api imports\n  web ghost calls\n\n@foo\n  x y z\n","svg":null,"html":null,"diagnostics":"error E-DEPTHVAL [line 4]: depth '3' is not 0, 1, or 2 (remedy: set depth to 0, 1, or 2)\nerror E-EDGEREF [line 13]: edge references undefined node 'ghost' (remedy: define 'ghost' in @nodes or fix the id)\nerror E-BADSECTION [line 15]: unknown section header '@foo' (remedy: use @meta/@nodes/@edges/@layout or remove it)\n"},"layout-demo":{"title":"layout-demo","version":"repo-map v1","tags":["layout","focus"],"valid":true,"dsl":"# repo-map v1\n# @layout の rank= / group= と、依存のみノード・既定グループを示す小さな例。\n@meta\n  root: services/auth\n  depth: 2\n  focus: handlers\n  generated: 2026-06-03T09:30:00Z\n\n@nodes\n  authsvc   package    \"Auth Service\"   services/auth\n  handlers  file-group \"HTTP Handlers\"  src/handlers\n  usecases  file-group \"Use Cases\"      src/usecases\n  repo      file-group \"Repositories\"   src/repo\n  db        datastore  Postgres\n\n@edges\n  authsvc   handlers  contains\n  authsvc   usecases  contains\n  authsvc   repo      contains\n  handlers  usecases  calls\n  usecases  repo      calls\n  repo      db        reads\n\n@layout\n  handlers  group=api\n  usecases  group=api\n  repo      group=data\n  db        rank=4\n","svg":"layout-demo.svg","html":"layout-demo.html","diagnostics":null}}</script>
+<script>
+(function () {
+  var DATA = JSON.parse(document.getElementById("stories-data").textContent);
+  var FIRST = "example-a";
+  var current = null, currentTab = null;
+
+  var titleEl = document.getElementById("detail-title");
+  var iframe = document.getElementById("preview");
+  var svgImg = document.getElementById("svg-img");
+  var dslPre = document.getElementById("dsl-pre");
+  var diagPre = document.getElementById("diag-pre");
+  var tabBtns = Array.prototype.slice.call(document.querySelectorAll(".tab-btn"));
+  var panes = Array.prototype.slice.call(document.querySelectorAll(".pane"));
+
+  function tabsFor(s) { return s.valid ? ["preview", "svg", "dsl"] : ["dsl", "diag"]; }
+
+  function showTab(tab) {
+    var s = DATA[current];
+    if (!s) return;
+    if (tabsFor(s).indexOf(tab) === -1) tab = tabsFor(s)[0];
+    currentTab = tab;
+    tabBtns.forEach(function (b) { b.classList.toggle("active", b.dataset.tab === tab); });
+    panes.forEach(function (p) { p.classList.toggle("active", p.dataset.pane === tab); });
+    if (tab === "preview") {
+      if (iframe.getAttribute("src") !== s.html) iframe.setAttribute("src", s.html);
+    } else if (tab === "svg") {
+      if (svgImg.getAttribute("src") !== s.svg) svgImg.setAttribute("src", s.svg);
+    } else if (tab === "dsl") {
+      dslPre.textContent = s.dsl;
+    } else if (tab === "diag") {
+      diagPre.textContent = s.diagnostics || "";
+    }
+  }
+
+  function selectStory(id) {
+    if (!DATA[id]) return;
+    current = id;
+    var s = DATA[id];
+    titleEl.textContent = s.title + "  —  " + s.version;
+    document.querySelectorAll(".story-btn").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.id === id);
+    });
+    var avail = tabsFor(s);
+    tabBtns.forEach(function (b) { b.hidden = avail.indexOf(b.dataset.tab) === -1; });
+    showTab(avail[0]);
+  }
+
+  document.querySelectorAll(".story-btn").forEach(function (b) {
+    b.addEventListener("click", function () { selectStory(b.dataset.id); });
+  });
+  tabBtns.forEach(function (b) {
+    b.addEventListener("click", function () { showTab(b.dataset.tab); });
+  });
+
+  if (FIRST) selectStory(FIRST);
+})();
+</script>
+</body>
+</html>
