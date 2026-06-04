@@ -165,7 +165,7 @@ HTML 側 JS は配信元で挙動を切り替える:
   → **プロンプトを生成**してクリップボードへ。`navigator.clipboard` が使えない場合は
   `<textarea>` にプロンプトを表示して手動コピーさせる。
 
-HTML 側 `buildPrompt` は、ブリッジ側 `build_prompt`（[local-bridge.md](local-bridge.md)）と
+HTML 側 `buildPrompt` は、ブリッジ側 `build_prompt`（[bridge-claude-invocation.md](bridge-claude-invocation.md)）と
 **同じ体裁**のプロンプトを作る。どちらの方式でも同じ内容が Claude Code に渡る。
 
 ---
