@@ -1,0 +1,600 @@
+// html_emitter — インタラクティブ Viewer（固定テンプレ ＋ 注入 SVG ＋ ドラッグ）
+//
+// output-formats.md §2 と html-viewer-contract.md の実装。参照実装
+// （repo-map-interactive-viewer/examples/repo-map.html）と同じ契約（data-*・凡例・詳細パネル・
+// Ask/Copy・bridge /api/ask・Markdown レンダラ・stopped オーバーレイ）を固定テンプレートとして再現し、
+// 変動点は埋め込み SVG だけにする（同じ DSL → 同じ HTML）。
+//
+// 追加機能: ノードのドラッグ移動（view-time のみ）。掴んで動かすと接続線・ラベル・ID が追従するが、
+// 出力ファイル＝リロード時の初期レイアウトは決定的レイアウトのまま（永続化しない）。
+// buildPrompt はブリッジ側 build_prompt とバイト一致させる必要があるため、SCRIPT は String.raw で
+// 逐語保持する（`\n` 等のエスケープを壊さない）。
+
+import { emitSvg } from "./svg_emitter.mjs";
+
+/**
+ * RepoMap ＋ layout からインタラクティブ HTML を作る。
+ * @returns {string}
+ */
+export function emitHtml(repoMap, layout) {
+  const svg = emitSvg(repoMap, layout, { rootAttrs: 'class="diagram"' });
+  return [
+    "<!DOCTYPE html>",
+    '<html lang="ja">',
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    "<title>repo-map v1 — interactive viewer</title>",
+    "<!--",
+    "  repo-map インタラクティブ Viewer。notation-render が DSL から決定的に生成。",
+    "  契約は repo-map-interactive-viewer/references/html-viewer-contract.md。",
+    "  data-* はすべて DSL から決定的に導出（固定テンプレート＋固定スクリプト）。",
+    "  ノードはドラッグで移動できる（view-time のみ・初期レイアウトは不変）。",
+    "-->",
+    "<style>",
+    STYLE,
+    "</style>",
+    "</head>",
+    "<body>",
+    HEADER,
+    '<div class="layout">',
+    "  <div>",
+    svg.replace(/\n+$/, ""), // SVG を逐語埋め込み（ノードブロックを単体 SVG とバイト一致させる）
+    LEGEND,
+    "  </div>",
+    PANEL,
+    "</div>",
+    OVERLAY,
+    "<script>",
+    SCRIPT,
+    "</script>",
+    "</body>",
+    "</html>",
+    "",
+  ].join("\n");
+}
+
+// --- 固定 CSS（参照実装 ＋ ドラッグ用追記） ---
+
+const STYLE = `  :root {
+    --fg: #111827; --muted: #6B7280; --border: #E5E7EB; --bg: #FFFFFF;
+    --accent: #2563EB; --focus: #F59E0B; --danger: #DC2626;
+    --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); color: var(--fg); background: var(--bg); }
+  header { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 15px; margin: 0; }
+  header .mode { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .layout { display: flex; align-items: flex-start; gap: 16px; padding: 16px; flex-wrap: wrap; }
+  .diagram { border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+  .node { cursor: pointer; }
+  .node:hover rect { stroke: var(--focus); stroke-width: 3; }
+  .node.selected rect { stroke: var(--focus); stroke-width: 3; }
+  .legend { font-size: 12px; color: var(--muted); padding: 8px 4px; }
+  .legend span.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin: 0 4px 0 10px; }
+  .panel { width: 380px; min-width: 300px; flex: 1 1 320px; border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .panel h2 { font-size: 13px; margin: 0 0 8px; }
+  .panel .empty { color: var(--muted); font-size: 13px; }
+  .field { margin: 6px 0; font-size: 13px; }
+  .field .k { color: var(--muted); display: inline-block; min-width: 90px; }
+  .field .v { font-family: var(--mono); }
+  pre.excerpt, pre.edges { font-family: var(--mono); font-size: 12px; background: #F9FAFB; border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px; white-space: pre-wrap; word-break: break-word; max-height: 160px; overflow: auto; }
+  textarea#question { width: 100%; min-height: 64px; font-family: var(--font); font-size: 13px; padding: 8px;
+    border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
+  .actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  button { font-family: var(--font); font-size: 13px; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border);
+    background: #fff; cursor: pointer; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.danger { color: var(--danger); border-color: var(--danger); }
+  button.danger:hover { background: var(--danger); color: #fff; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
+  .session { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
+  .answer { font-family: var(--font); font-size: 13px; background: #F9FAFB; border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px; margin-top: 8px; overflow-wrap: anywhere; }
+  .answer > *:first-child { margin-top: 0; }
+  .answer h1, .answer h2, .answer h3, .answer h4 { margin: 8px 0 4px; font-size: 14px; line-height: 1.3; }
+  .answer p { margin: 6px 0; }
+  .answer ul, .answer ol { margin: 4px 0; padding-left: 20px; }
+  .answer li { margin: 2px 0; }
+  .answer code { font-family: var(--mono); font-size: 12px; background: #fff; border: 1px solid var(--border);
+    border-radius: 4px; padding: 0 3px; }
+  .answer pre { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 8px;
+    overflow: auto; margin: 6px 0; }
+  .answer pre code { border: 0; padding: 0; background: none; }
+  .answer table { border-collapse: collapse; font-size: 12px; margin: 6px 0; }
+  .answer th, .answer td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+  .answer th { background: #F3F4F6; }
+  .answer blockquote { border-left: 3px solid var(--border); margin: 6px 0; padding-left: 10px; color: var(--muted); }
+  .answer a { color: var(--accent); }
+  .answer hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
+  .loading { display: none; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .loading.on { display: flex; }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .model-controls { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+  .mc-label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  .mc-label select { font-family: var(--font); font-size: 12px; padding: 4px 6px; border: 1px solid var(--border);
+    border-radius: 6px; background: #fff; }
+  textarea#prompt-fallback { width: 100%; min-height: 140px; font-family: var(--mono); font-size: 12px; margin-top: 8px;
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px; display: none; }
+  #stopped-overlay { position: fixed; inset: 0; z-index: 1000; display: none;
+    align-items: center; justify-content: center; text-align: center; padding: 24px;
+    background: rgba(255,255,255,.96); color: var(--fg); font-size: 15px; line-height: 1.6; }
+  #stopped-overlay.on { display: flex; }
+  /* ドラッグ用（view-time のみ・初期レイアウトは不変） */
+  svg.diagram { -webkit-user-select: none; user-select: none; touch-action: none; }
+  svg.diagram .node { cursor: grab; }
+  svg.diagram .node.dragging { cursor: grabbing; }`;
+
+const HEADER = `<header>
+  <h1>repo-map v1 — interactive viewer</h1>
+  <div class="mode" id="mode-line">mode: 判定中…</div>
+</header>`;
+
+const LEGEND = `    <div class="legend">
+      kind:
+      <span class="sw" style="background:#1F2937"></span>system
+      <span class="sw" style="background:#2563EB"></span>package
+      <span class="sw" style="background:#0EA5E9"></span>module
+      <span class="sw" style="background:#14B8A6"></span>file-group
+      <span class="sw" style="background:#9CA3AF"></span>external
+      <span class="sw" style="background:#7C3AED"></span>datastore
+      ／ 実線=構造（contains/deploys/owns）, 破線=依存（imports/calls/reads）
+      <br>ヒント: ノードはドラッグで移動できます（接続線が追従。リロードで初期配置に戻ります）。
+    </div>`;
+
+const PANEL = `  <aside class="panel" id="panel">
+    <h2>選択中のノード</h2>
+    <div id="node-empty" class="empty">図のノードをクリックすると、ここに詳細が表示されます。</div>
+    <div id="node-detail" style="display:none">
+      <div class="field"><span class="k">node id</span><span class="v" id="f-id"></span></div>
+      <div class="field"><span class="k">label</span><span class="v" id="f-label"></span></div>
+      <div class="field"><span class="k">kind</span><span class="v" id="f-kind"></span></div>
+      <div class="field"><span class="k">path</span><span class="v" id="f-path"></span></div>
+      <div class="field"><span class="k">related edges</span></div>
+      <pre class="edges" id="f-edges"></pre>
+      <div class="field"><span class="k">DSL excerpt</span></div>
+      <pre class="excerpt" id="f-excerpt"></pre>
+
+      <div class="field"><span class="k">質問</span></div>
+      <textarea id="question" placeholder="このノードについて聞きたいことを入力…"></textarea>
+      <div class="actions">
+        <button class="primary" id="btn-ask">Ask Claude Code</button>
+        <button id="btn-reset" style="display:none">新しい会話</button>
+        <button id="btn-copy">Copy prompt for Claude Code</button>
+        <button class="danger" id="btn-stop" style="display:none">ブリッジを停止</button>
+      </div>
+      <div class="model-controls" id="model-controls" style="display:none">
+        <label class="mc-label">model
+          <select id="sel-model"><option value="">(default)</option></select>
+        </label>
+        <label class="mc-label">effort
+          <select id="sel-effort"><option value="">(default)</option></select>
+        </label>
+      </div>
+      <div class="session" id="session-line"></div>
+      <div class="status" id="status"></div>
+      <div class="loading" id="loading"><span class="spinner"></span>Claude が考えています…</div>
+      <div class="answer" id="answer" style="display:none"></div>
+      <textarea id="prompt-fallback" readonly></textarea>
+    </div>
+  </aside>`;
+
+const OVERLAY = `<div id="stopped-overlay">ブリッジを停止しました。このタブは閉じてかまいません。</div>`;
+
+// --- 固定スクリプト（参照実装の逐語コピー ＋ ドラッグ配線）。String.raw でエスケープを保持 ---
+
+const SCRIPT = String.raw`(function () {
+  "use strict";
+
+  // --- モード判定: 127.0.0.1 配信なら bridge、それ以外（file:// 等）は copy フォールバック ---
+  var isBridge = (location.protocol === "http:" || location.protocol === "https:") &&
+                 (location.hostname === "127.0.0.1" || location.hostname === "localhost");
+  document.getElementById("mode-line").textContent =
+    isBridge ? "mode: localhost bridge（Ask でローカル Claude Code に質問できます）"
+             : "mode: copy フォールバック（ブリッジ未起動／file://。プロンプトをコピーして Claude Code に貼ってください）";
+
+  var sessionLine = document.getElementById("session-line");
+  function setSessionLine(text) { sessionLine.textContent = text || ""; }
+
+  var MSG_NOT_STARTED = "会話: まだ開始していません（質問すると同じ会話として継続します）";
+  var MSG_CONTINUING = "会話: 継続中（次の質問も同じ文脈で続きます。別ノードでも継続）";
+
+  if (isBridge) {
+    document.getElementById("btn-reset").style.display = "";
+    document.getElementById("model-controls").style.display = "flex";
+    fetch("/api/health").then(function (r) { return r.json(); }).then(function (h) {
+      populateSelect("sel-model", (h && h.availableModels) || [], h && h.defaultModel);
+      populateSelect("sel-effort", (h && h.availableEfforts) || [], h && h.defaultEffort);
+      if (!h || h.remoteShutdown !== false) {
+        document.getElementById("btn-stop").style.display = "";
+      }
+      if (h && h.sessionContinuity === false) {
+        setSessionLine("会話: 継続オフ（質問ごとに独立。--no-session-continuity で起動中）");
+        document.getElementById("btn-reset").style.display = "none";
+      } else if (h && h.sessionId) {
+        setSessionLine(MSG_CONTINUING);
+      } else {
+        setSessionLine(MSG_NOT_STARTED);
+      }
+    }).catch(function () { setSessionLine(MSG_NOT_STARTED); });
+  }
+
+  function populateSelect(id, values, def) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    for (var i = 0; i < values.length; i++) {
+      var v = values[i];
+      if (typeof v !== "string" || !v) continue;
+      var opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = v;
+      if (def && v === def) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+
+  var selected = null;
+
+  function nodePayload() {
+    if (!selected) return null;
+    return {
+      nodeId: selected.nodeId || "",
+      label: selected.label || "",
+      kind: selected.kind || "",
+      path: selected.path || "",
+      relatedEdges: selected.relatedEdges || "",
+      dslExcerpt: selected.dslExcerpt || ""
+    };
+  }
+
+  function buildPrompt(p, question) {
+    function line(v) { v = (v || "").trim(); return v ? v : "(未指定)"; }
+    function block(v) { v = (v || "").trim(); return v ? v : "(なし)"; }
+    return (
+      "あなたはローカルリポジトリ理解を支援するアシスタントです。\n" +
+      "対象リポジトリは現在のworking directoryです。\n\n" +
+      "ユーザーは repo-map HTML Viewer 上で次のノードを見ています。\n\n" +
+      "node id: " + line(p.nodeId) + "\n" +
+      "label: " + line(p.label) + "\n" +
+      "kind: " + line(p.kind) + "\n" +
+      "path: " + line(p.path) + "\n" +
+      "related edges:\n" + block(p.relatedEdges) + "\n\n" +
+      "DSL excerpt:\n" + block(p.dslExcerpt) + "\n\n" +
+      "ユーザーの質問:\n" + (question || "").trim() + "\n\n" +
+      "回答方針:\n" +
+      "- まず repo-map DSL 上の意味を説明してください。\n" +
+      "- 必要なら Read / Glob / Grep で実ファイルを確認してください。\n" +
+      "- 推測と確認済み事実を分けてください。\n" +
+      "- ファイル編集、生成、削除はしないでください。\n" +
+      "- 最後に「次に読むとよいファイル」を挙げてください。\n" +
+      "- 回答は日本語を基本にしてください。\n"
+    );
+  }
+
+  // 自己完結 Markdown レンダラ（CDN/外部ライブラリ不使用・決定的・XSS 安全）。
+  function renderMarkdown(src) {
+    function esc(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+    var store = [];
+    var NUL = String.fromCharCode(0);
+    function stash(html) { store.push(html); return NUL + (store.length - 1) + NUL; }
+    function isStash(s) { s = s.trim(); return s.length > 1 && s.charCodeAt(0) === 0 && s.charCodeAt(s.length - 1) === 0; }
+
+    var text = esc(src == null ? "" : String(src)).replace(/\r\n?/g, "\n");
+
+    text = text.replace(/(^|\n)(\x60\x60\x60|~~~)[^\n]*\n([\s\S]*?)\n\2(?=\n|$)/g, function (m, pre, fence, code) {
+      return pre + stash("<pre><code>" + code + "</code></pre>");
+    });
+
+    function inline(s) {
+      s = s.replace(/\x60([^\x60]+)\x60/g, function (m, c) { return stash("<code>" + c + "</code>"); });
+      s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (m, t, url) {
+        if (/^(https?:|mailto:|#|\/)/i.test(url)) {
+          return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + t + "</a>";
+        }
+        return t;
+      });
+      s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/__([^_]+)__/g, "<strong>$1</strong>");
+      s = s.replace(/\*([^*\n]+)\*/g, "<em>$1</em>").replace(/(^|[^\w])_([^_\n]+)_(?=$|[^\w])/g, "$1<em>$2</em>");
+      return s;
+    }
+
+    function splitRow(row) {
+      return row.replace(/^\s*\|?/, "").replace(/\|?\s*$/, "").split("|").map(function (c) { return c.trim(); });
+    }
+
+    var lines = text.split("\n");
+    var out = [];
+    var i = 0;
+    function blank(s) { return /^\s*$/.test(s); }
+
+    while (i < lines.length) {
+      var ln = lines[i];
+      if (blank(ln)) { i++; continue; }
+      if (isStash(ln)) { out.push(ln.trim()); i++; continue; }
+
+      var h = /^(#{1,6})\s+(.*)$/.exec(ln);
+      if (h) { var lv = h[1].length; out.push("<h" + lv + ">" + inline(h[2].trim()) + "</h" + lv + ">"); i++; continue; }
+
+      if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(ln)) { out.push("<hr>"); i++; continue; }
+
+      if (ln.indexOf("|") !== -1 && i + 1 < lines.length &&
+          /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)+\|?\s*$/.test(lines[i + 1])) {
+        var header = splitRow(ln);
+        i += 2;
+        var rows = [];
+        while (i < lines.length && lines[i].indexOf("|") !== -1 && !blank(lines[i])) { rows.push(splitRow(lines[i])); i++; }
+        var thead = "<thead><tr>" + header.map(function (c) { return "<th>" + inline(c) + "</th>"; }).join("") + "</tr></thead>";
+        var tbody = "<tbody>" + rows.map(function (r) {
+          return "<tr>" + r.map(function (c) { return "<td>" + inline(c) + "</td>"; }).join("") + "</tr>";
+        }).join("") + "</tbody>";
+        out.push("<table>" + thead + tbody + "</table>");
+        continue;
+      }
+
+      if (/^\s*&gt;\s?/.test(ln)) {
+        var q = [];
+        while (i < lines.length && /^\s*&gt;\s?/.test(lines[i])) { q.push(lines[i].replace(/^\s*&gt;\s?/, "")); i++; }
+        out.push("<blockquote>" + inline(q.join(" ")) + "</blockquote>");
+        continue;
+      }
+
+      if (/^\s*[-*+]\s+/.test(ln) || /^\s*\d+\.\s+/.test(ln)) {
+        var ordered = /^\s*\d+\.\s+/.test(ln);
+        var re = ordered ? /^\s*\d+\.\s+(.*)$/ : /^\s*[-*+]\s+(.*)$/;
+        var items = [];
+        while (i < lines.length && re.test(lines[i])) { items.push(re.exec(lines[i])[1]); i++; }
+        var tag = ordered ? "ol" : "ul";
+        out.push("<" + tag + ">" + items.map(function (it) { return "<li>" + inline(it) + "</li>"; }).join("") + "</" + tag + ">");
+        continue;
+      }
+
+      var para = [];
+      while (i < lines.length && !blank(lines[i]) && !isStash(lines[i]) &&
+             !/^(#{1,6})\s+/.test(lines[i]) && !/^(-{3,}|\*{3,}|_{3,})\s*$/.test(lines[i]) &&
+             !/^\s*&gt;\s?/.test(lines[i]) && !/^\s*[-*+]\s+/.test(lines[i]) && !/^\s*\d+\.\s+/.test(lines[i])) {
+        para.push(lines[i]); i++;
+      }
+      if (para.length) out.push("<p>" + inline(para.join(" ")) + "</p>");
+    }
+
+    var html = out.join("\n");
+    return html.replace(new RegExp(NUL + "([0-9]+)" + NUL, "g"), function (m, n) { return store[+n]; });
+  }
+
+  function selectNode(g) {
+    var nodes = document.querySelectorAll(".node");
+    for (var i = 0; i < nodes.length; i++) nodes[i].classList.remove("selected");
+    g.classList.add("selected");
+    selected = g.dataset;
+
+    document.getElementById("node-empty").style.display = "none";
+    document.getElementById("node-detail").style.display = "block";
+    document.getElementById("f-id").textContent = selected.nodeId || "";
+    document.getElementById("f-label").textContent = selected.label || "";
+    document.getElementById("f-kind").textContent = selected.kind || "";
+    document.getElementById("f-path").textContent = selected.path || "(なし)";
+    document.getElementById("f-edges").textContent = selected.relatedEdges || "(なし)";
+    document.getElementById("f-excerpt").textContent = selected.dslExcerpt || "(なし)";
+    document.getElementById("answer").style.display = "none";
+    document.getElementById("prompt-fallback").style.display = "none";
+    document.getElementById("status").textContent = "";
+  }
+
+  function showFallbackPrompt(prompt, note) {
+    var ta = document.getElementById("prompt-fallback");
+    ta.value = prompt;
+    ta.style.display = "block";
+    ta.focus();
+    ta.select();
+    document.getElementById("status").textContent =
+      note || "クリップボードが使えないため、下のテキストを手動でコピーしてください。";
+  }
+
+  function doCopy() {
+    var p = nodePayload();
+    if (!p) return;
+    var prompt = buildPrompt(p, document.getElementById("question").value);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(prompt).then(function () {
+        document.getElementById("status").textContent = "プロンプトをコピーしました。Claude Code に貼り付けてください。";
+        document.getElementById("prompt-fallback").style.display = "none";
+      }).catch(function () {
+        showFallbackPrompt(prompt);
+      });
+    } else {
+      showFallbackPrompt(prompt);
+    }
+  }
+
+  function setBusy(busy) {
+    document.getElementById("btn-ask").disabled = busy;
+    var br = document.getElementById("btn-reset");
+    if (br) br.disabled = busy;
+    var sm = document.getElementById("sel-model"); if (sm) sm.disabled = busy;
+    var se = document.getElementById("sel-effort"); if (se) se.disabled = busy;
+    document.getElementById("loading").classList.toggle("on", busy);
+  }
+
+  function doReset() {
+    if (!isBridge) return;
+    var br = document.getElementById("btn-reset");
+    br.disabled = true;
+    document.getElementById("status").textContent = "会話をリセット中…";
+    fetch("/api/reset", { method: "POST" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        br.disabled = false;
+        if (j && j.ok) {
+          setSessionLine("新しい会話を開始しました（次の質問から新しい会話）");
+          document.getElementById("status").textContent = "会話をリセットしました。";
+        } else {
+          document.getElementById("status").textContent = "リセットに失敗しました。";
+        }
+      }).catch(function (err) {
+        br.disabled = false;
+        document.getElementById("status").textContent = "リセットに接続できませんでした（" + err + "）。";
+      });
+  }
+
+  function doStop() {
+    if (!isBridge) return;
+    document.getElementById("btn-stop").disabled = true;
+    document.getElementById("status").textContent = "ブリッジを停止しています…";
+    fetch("/api/shutdown", { method: "POST" }).then(showStopped, showStopped);
+  }
+
+  function showStopped() {
+    document.getElementById("stopped-overlay").classList.add("on");
+    try { window.close(); } catch (e) {}
+  }
+
+  function doAsk() {
+    var p = nodePayload();
+    if (!p) return;
+    var question = document.getElementById("question").value.trim();
+    if (!question) { document.getElementById("status").textContent = "質問を入力してください。"; return; }
+
+    if (!isBridge) {
+      var prompt = buildPrompt(p, question);
+      showFallbackPrompt(prompt, "ブリッジが未起動です。下のプロンプトをコピーして Claude Code に貼ってください。");
+      return;
+    }
+
+    var body = Object.assign({ question: question }, p);
+    var selModel = document.getElementById("sel-model");
+    var selEffort = document.getElementById("sel-effort");
+    if (selModel && selModel.value) body.model = selModel.value;
+    if (selEffort && selEffort.value) body.effort = selEffort.value;
+    document.getElementById("answer").style.display = "none";
+    document.getElementById("status").textContent = "ローカル Claude Code に問い合わせ中…（数十秒かかることがあります）";
+    setBusy(true);
+
+    fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (j) { return { status: r.status, json: j }; }); })
+      .then(function (res) {
+        setBusy(false);
+        var ans = document.getElementById("answer");
+        if (res.json && res.json.ok) {
+          ans.innerHTML = renderMarkdown(res.json.answer || "(空の回答)");
+          ans.style.display = "block";
+          document.getElementById("status").textContent = "回答が返りました。";
+          setSessionLine(MSG_CONTINUING);
+        } else {
+          var msg = (res.json && res.json.error) ? res.json.error : ("HTTP " + res.status);
+          var detail = (res.json && res.json.detail) ? ("\n\n" + res.json.detail) : "";
+          ans.textContent = "エラー: " + msg + detail;
+          ans.style.display = "block";
+          document.getElementById("status").textContent = "失敗しました。Copy prompt 方式も使えます。";
+        }
+      }).catch(function (err) {
+        setBusy(false);
+        var prompt = buildPrompt(p, question);
+        showFallbackPrompt(prompt, "ブリッジに接続できませんでした（" + err + "）。下のプロンプトをコピーしてください。");
+      });
+  }
+
+  // --- 配線（ボタン） ---
+  document.getElementById("btn-ask").addEventListener("click", doAsk);
+  document.getElementById("btn-copy").addEventListener("click", doCopy);
+  document.getElementById("btn-reset").addEventListener("click", doReset);
+  document.getElementById("btn-stop").addEventListener("click", doStop);
+
+  // --- ノード: クリックで選択、ドラッグで移動（view-time のみ・初期レイアウトは不変） ---
+  var svg = document.querySelector("svg.diagram");
+  var nodeEls = svg ? svg.querySelectorAll(".node") : [];
+  var edgeEls = svg ? svg.querySelectorAll("line.edge") : [];
+  var focusFrame = svg ? svg.querySelector(".focus-frame") : null;
+  var NODE_W = 160, NODE_H = 48; // layout-algorithm.md §4（固定）
+  var DRAG_THRESHOLD = 3;
+
+  var pos = {};
+  for (var k = 0; k < nodeEls.length; k++) {
+    var gx = nodeEls[k];
+    pos[gx.getAttribute("data-node-id")] = { x: +gx.getAttribute("data-x"), y: +gx.getAttribute("data-y") };
+  }
+
+  function clientToSvg(ev) {
+    if (!svg || !svg.getScreenCTM) return { x: ev.clientX, y: ev.clientY };
+    var ctm = svg.getScreenCTM();
+    if (!ctm) return { x: ev.clientX, y: ev.clientY };
+    var inv = ctm.inverse();
+    return {
+      x: ev.clientX * inv.a + ev.clientY * inv.c + inv.e,
+      y: ev.clientX * inv.b + ev.clientY * inv.d + inv.f
+    };
+  }
+
+  function edgeEndpoints(fromId, toId) {
+    var bf = pos[fromId], bt = pos[toId];
+    if (!bf || !bt) return null;
+    if (bt.y > bf.y) {
+      return { x1: bf.x + NODE_W / 2, y1: bf.y + NODE_H, x2: bt.x + NODE_W / 2, y2: bt.y };
+    }
+    return { x1: bf.x + NODE_W, y1: bf.y + NODE_H / 2, x2: bt.x, y2: bt.y + NODE_H / 2 };
+  }
+
+  function redrawEdges(nodeId) {
+    for (var e = 0; e < edgeEls.length; e++) {
+      var ln = edgeEls[e];
+      var f = ln.getAttribute("data-from"), t = ln.getAttribute("data-to");
+      if (f !== nodeId && t !== nodeId) continue;
+      var ep = edgeEndpoints(f, t);
+      if (!ep) continue;
+      ln.setAttribute("x1", ep.x1); ln.setAttribute("y1", ep.y1);
+      ln.setAttribute("x2", ep.x2); ln.setAttribute("y2", ep.y2);
+    }
+    if (focusFrame && focusFrame.getAttribute("data-focus-for") === nodeId && pos[nodeId]) {
+      focusFrame.setAttribute("x", pos[nodeId].x - 3);
+      focusFrame.setAttribute("y", pos[nodeId].y - 3);
+    }
+  }
+
+  function wireNode(g) {
+    var id = g.getAttribute("data-node-id");
+    var dragging = false, moved = false, startX = 0, startY = 0, origX = 0, origY = 0;
+
+    g.addEventListener("pointerdown", function (ev) {
+      dragging = true; moved = false;
+      var p = clientToSvg(ev);
+      startX = p.x; startY = p.y;
+      origX = pos[id].x; origY = pos[id].y;
+      g.classList.add("dragging");
+      try { g.setPointerCapture(ev.pointerId); } catch (e) {}
+      ev.preventDefault();
+    });
+    g.addEventListener("pointermove", function (ev) {
+      if (!dragging) return;
+      var p = clientToSvg(ev);
+      var dx = p.x - startX, dy = p.y - startY;
+      if (!moved && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) moved = true;
+      if (!moved) return;
+      var nx = Math.round(origX + dx), ny = Math.round(origY + dy);
+      pos[id].x = nx; pos[id].y = ny;
+      g.setAttribute("transform", "translate(" + nx + "," + ny + ")");
+      redrawEdges(id);
+    });
+    function endDrag(ev) {
+      if (!dragging) return;
+      dragging = false;
+      g.classList.remove("dragging");
+      try { g.releasePointerCapture(ev.pointerId); } catch (e) {}
+      if (!moved) selectNode(g); // 動いていなければクリック＝選択
+    }
+    g.addEventListener("pointerup", endDrag);
+    g.addEventListener("pointercancel", endDrag);
+  }
+
+  for (var n = 0; n < nodeEls.length; n++) wireNode(nodeEls[n]);
+})();`;

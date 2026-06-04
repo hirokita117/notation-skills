@@ -1,0 +1,96 @@
+{
+  "version": "repo-map v1",
+  "meta": {
+    "root": "services/auth",
+    "depth": 2,
+    "focus": "handlers",
+    "generated": "2026-06-03T09:30:00Z"
+  },
+  "nodes": [
+    {
+      "id": "authsvc",
+      "kind": "package",
+      "label": "Auth Service",
+      "path": "services/auth"
+    },
+    {
+      "id": "handlers",
+      "kind": "file-group",
+      "label": "HTTP Handlers",
+      "path": "src/handlers"
+    },
+    {
+      "id": "usecases",
+      "kind": "file-group",
+      "label": "Use Cases",
+      "path": "src/usecases"
+    },
+    {
+      "id": "repo",
+      "kind": "file-group",
+      "label": "Repositories",
+      "path": "src/repo"
+    },
+    {
+      "id": "db",
+      "kind": "datastore",
+      "label": "Postgres"
+    }
+  ],
+  "edges": [
+    {
+      "index": 0,
+      "from": "authsvc",
+      "to": "handlers",
+      "relation": "contains"
+    },
+    {
+      "index": 1,
+      "from": "authsvc",
+      "to": "usecases",
+      "relation": "contains"
+    },
+    {
+      "index": 2,
+      "from": "authsvc",
+      "to": "repo",
+      "relation": "contains"
+    },
+    {
+      "index": 3,
+      "from": "handlers",
+      "to": "usecases",
+      "relation": "calls"
+    },
+    {
+      "index": 4,
+      "from": "usecases",
+      "to": "repo",
+      "relation": "calls"
+    },
+    {
+      "index": 5,
+      "from": "repo",
+      "to": "db",
+      "relation": "reads"
+    }
+  ],
+  "layout": [
+    {
+      "id": "handlers",
+      "group": "api"
+    },
+    {
+      "id": "usecases",
+      "group": "api"
+    },
+    {
+      "id": "repo",
+      "group": "data"
+    },
+    {
+      "id": "db",
+      "rank": 4
+    }
+  ]
+}

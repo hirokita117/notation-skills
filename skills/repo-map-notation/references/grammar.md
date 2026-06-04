@@ -59,7 +59,7 @@ ALPHA     = "a".."z" | "A".."Z"
 DIGIT     = "0".."9"
 ```
 
-先頭は英字かアンダースコア。以降は英数字・`_`・`-`・`.`。スペース・スラッシュ・`@`・`#`・引用符は不可。最大 64 文字（超過は E-IDLEN）。ドットを許すのは `apps.web` のようなパス由来 slug が自然に読めるため。スラッシュを除くのは、ID をパスと混同させないため。
+先頭は英字かアンダースコア。以降は英数字・`_`・`-`・`.`。スペース・スラッシュ・`@`・`#`・引用符は不可（文字集合違反は E-BADID）。最大 64 文字（超過は E-IDLEN）。ドットを許すのは `apps.web` のようなパス由来 slug が自然に読めるため。スラッシュを除くのは、ID をパスと混同させないため。
 
 **推奨の ID 導出**: ノードのパスを root からの相対にし、先頭の `./` を除き、`/` を `.` に、残りの不正文字を `-` に置換して小文字化する。例: `apps/web` → `apps.web`、`services/auth-api` → `services.auth-api`。同じパスは常に同じ ID を生み、地図の再生成が安定する。
 
@@ -108,7 +108,7 @@ key-token = "root" | "depth" | "focus" | "generated"
 | `focus` | 任意 | id | `@nodes` 内に存在必須。なければ E-FOCUSREF |
 | `generated` | **必須** | ISO 8601 | 不正形式は W-DATEFMT（警告） |
 
-各キーは高々 1 回。重複は E-DUPMETA、未知キーは E-BADMETAKEY。
+各キーは高々 1 回。重複は E-DUPMETA、未知キーは E-BADMETAKEY。必須キー（root/depth/generated）が無ければ E-METAMISSING、`key: value` 形式でない行は E-METASYNTAX。
 
 `depth` の意味: 0 = システム全体（数個の粗いノード）、1 = パッケージ／トップ階層、2 = 範囲を絞った主要ファイル群（§ [scope-and-depth.md](scope-and-depth.md)）。
 
@@ -280,9 +280,12 @@ warning W-ORPHAN: node 'legacycache' has no edges (remedy: connect it or remove 
 | E-DEPTHVAL | error | `depth` が {0,1,2} でない | depth を 0/1/2 に |
 | E-DUPMETA | error | meta キー重複 | 各 meta キーは 1 回まで |
 | E-BADMETAKEY | error | 未知 meta キー | 未知キーを削除 |
+| E-METAMISSING | error | 必須 meta キー（root/depth/generated）が無い | 不足キーを追加する |
+| E-METASYNTAX | error | meta 行が `key: value` 形式でない（`:` ＋スペース区切りが無い） | `key: value` の形にする |
 | E-FOCUSREF | error | `focus` が未定義 ID | 定義済みノードを指す |
 | E-DUPID | error | ノード ID 重複 | ID を一意にする |
 | E-IDLEN | error | ID が 64 文字超 | ID を短くする |
+| E-BADID | error | id が §1.7 の文字集合に従わない | 先頭は英字/`_`、以降は英数・`_`・`-`・`.` のみにする |
 | E-BADKIND | error | kind が集合外 | system/package/module/file-group/external/datastore から選ぶ |
 | E-NODEARITY | error | ノード行のトークン数が不正 | 複数語ラベルは引用、path はラベル後の 1 トークン |
 | E-QUOTE | error | 閉じない引用 | 引用を閉じる |

@@ -10,7 +10,7 @@
 |------|-------|------|------|-----------|
 | 0 | `notation-core` | 共通土台（記法中心設計の思想・用語・原則・検証観） | 原則 | 初回・設計判断に迷ったとき（毎回は不要） |
 | 1 | `repo-map-notation` | リポジトリ構造を `repo-map v1` DSL に落とす | `repo-map v1` テキスト | 「図解して」「アーキテクチャ地図」 |
-| 2 | `notation-render` | DSL **だけ**を読んで図にする（決定的） | SVG / HTML（任意で Mermaid） | 「この DSL を SVG に」 |
+| 2 | `notation-render` | DSL **だけ**を読んで図にする（決定的） | SVG / HTML / JSON（任意で Mermaid）。主経路は実行可能レンダラー `scripts/render_repo_map.mjs` | 「この DSL を SVG に」 |
 | ＋ | `repo-map-interactive-viewer` | 生成済みインタラクティブ HTML をローカル Claude Code とつなぐ対話ビューア（**描画はしない**・DSL 正本も変えない） | ブリッジ起動手順・質問→回答 | 「HTML をクリックして Claude に質問したい」 |
 
 ---
@@ -53,9 +53,12 @@
 | 描画パイプライン名 `parse → validate → layout → emit` | `notation-render/references/render-contract.md` | `notation-render`（parse/validate の語彙は `notation-core` の同期ループに由来） |
 | 決定的レイアウト（rank / group / 座標・寸法定数） | `notation-render/references/layout-algorithm.md` | `repo-map-notation`（サンプル描画の配置を語るとき） |
 | テーマ定数（kind ごとの色・フォント・固定 hex） | `notation-render/references/theme.md` | `repo-map-notation`（サンプル描画の色を語るとき） |
-| インタラクティブ HTML 契約（`data-*` スキーマ／`/api/ask` JSON 形／フォールバック） | `repo-map-interactive-viewer/references/html-viewer-contract.md` | `notation-render`（インタラクティブ HTML を出すとき） |
+| インタラクティブ HTML 契約（`data-*` スキーマ／`/api/ask` JSON 形／フォールバック／ドラッグ用属性） | `repo-map-interactive-viewer/references/html-viewer-contract.md` | `notation-render`（インタラクティブ HTML を出すとき） |
+| 決定的レンダラ実装（`notation-render/scripts/*.mjs`） | **正本を新設しない**。上記 `.md`（grammar / layout-algorithm / theme / output-formats / html-viewer-contract）が正本 | スクリプト自身が上記を参照して実装 |
 
 ルール: **`repo-map v1` の文法・列挙・検証は `repo-map-notation/references/grammar.md` が唯一の正本**。`notation-render` は「文法・列挙・検証コードは grammar.md v1 を normative とする」と宣言し、再定義しない。`notation-core` は思想・用語・一般原則だけを持ち、具体値は持たない。
+
+**`notation-render/scripts/` の実行可能レンダラーは上記 `.md` 仕様の「実装」であり、競合する正本を新設しない。** 挙動と `.md` が食い違ったら `.md` を正とし、スクリプトを直す。スクリプトは Node.js 標準ライブラリのみ・外部依存ゼロ（依存を足す場合は理由を `scripts/README.md` に明記）。
 
 ---
 

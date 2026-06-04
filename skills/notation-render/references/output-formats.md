@@ -45,6 +45,8 @@ HTML は **インタラクティブ Viewer を既定**として出す。SVG（§
 よって **同じ DSL → 同じ HTML**。乱数・時刻・気分は持ち込まない。
 SVG（§1）は引き続き**決定的な正典**で、HTML はそれを使う派生物。
 
+HTML Viewer は閲覧時に**ノードのドラッグ移動**にも対応してよい（掴んで動かすと接続線とラベル・ID が追従する）。これは view-time の表示操作のみで、`data-*` の導出にも出力ファイルの決定性にも影響しない（リロードで初期レイアウトに戻る）。属性スキーマは [html-viewer-contract.md](../../repo-map-interactive-viewer/references/html-viewer-contract.md) の「ドラッグ用属性」を参照。
+
 **責務の外**: Claude Code CLI 呼び出し・Python ブリッジ本体・起動手順は **この Skill の責務ではない**。
 それらは [`repo-map-interactive-viewer`](../../repo-map-interactive-viewer/SKILL.md) が担当する。
 ここは「契約どおりの HTML を決定的に出す」までで止める。最小実装例は

@@ -7,7 +7,7 @@
       "name": "notation-skills",
       "source": "./",
       "description": "巨大リポジトリを repo-map v1 DSL（正本）に落として決定的に図化し、生成済み HTML からローカル Claude Code に質問できる Skill 統合パック。",
-      "version": "1.2.0"
+      "version": "1.3.0"
     }
   ]
 }

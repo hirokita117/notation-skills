@@ -21,6 +21,8 @@ description: >
 
 入力された **notation の DSL テキストだけ**を読み、**決定的に**図へ変換する。現時点で受け付ける notation は **`repo-map v1` のみ**。設計の土台は [notation-core](../notation-core/SKILL.md)、文法・検証の正本は [repo-map-notation/references/grammar.md](../repo-map-notation/references/grammar.md)。この Skill はそれらを**再定義せず参照する**。
 
+**主経路は、LLM が SVG/HTML 本文を書き起こすのではなく、同梱の実行可能レンダラー [`scripts/render_repo_map.mjs`](scripts/render_repo_map.mjs) を実行すること。** これにより `parse → validate → layout → emit` がコードで機械的に走り、同じ DSL からは毎回同じ SVG/HTML/JSON が出る（下記「スクリプト」）。
+
 ## 入力契約（最重要）
 
 - **入力は DSL テキストのみ。** 受け付けるのは先頭行 `# repo-map v1` のテキスト。バージョン行で対応を分岐し、未知バージョンは描かず拒否する。
@@ -38,6 +40,24 @@ parse → validate → layout → emit
 2. **validate** — 同じ検証規則を**描画前ゲート**として走らせる（[grammar.md](../repo-map-notation/references/grammar.md) §7）。**エラーがあれば描かない**（処方を報告して差し戻す）。警告は報告しつつ描く。
 3. **layout** — `@layout` の rank/group を尊重し、無い／部分のところは決定的アルゴリズムで配置する（[references/layout-algorithm.md](references/layout-algorithm.md)）。
 4. **emit** — 固定テーマで図を書き出す（[references/output-formats.md](references/output-formats.md)）。
+
+## スクリプト（主経路：DSL → renderer → SVG/HTML/JSON）
+
+このパイプラインは **実行可能なレンダラー**として `scripts/` に実装されている。**可能な場合は、LLM が SVG/HTML 本文を考えて書くのではなく、このスクリプトを実行する。**
+
+```
+node skills/notation-render/scripts/render_repo_map.mjs input.repo-map --format svg  > out.svg
+node skills/notation-render/scripts/render_repo_map.mjs input.repo-map --format html > out.html
+cat input.repo-map | node skills/notation-render/scripts/render_repo_map.mjs - --format json
+```
+
+- `--format svg|html|json|mermaid`（既定 `svg`）。`json` は parse/validate/layout 後の内部モデル確認用。
+- 入力はファイルパスまたは `-`（stdin）。出力は **stdout**、診断は **stderr**。終了コード: `0` 正常 / `1` 検証エラー（**描画しない**）/ `2` 使用法エラー。
+- **Node.js 標準ライブラリのみ・外部依存ゼロ。** 使い方の詳細とモジュール構成は [scripts/README.md](scripts/README.md)。テストは `node --test skills/notation-render/tests/`。
+- スクリプトは `references/*.md` と [grammar.md](../repo-map-notation/references/grammar.md) の**実装**であり、正本を新設しない。挙動と仕様が食い違ったら `.md` を正とし、スクリプトを直す。
+- HTML 出力ではノードを**ドラッグで移動**できる（接続線・ラベルが追従）。これは閲覧時の操作のみで、リロードすると決定的な初期レイアウトに戻る（出力ファイルの決定性は壊さない）。
+
+入力例とスナップショットは [examples/](examples/)（`example-a.dsl` ＋ 期待 SVG/HTML/JSON、`layout-demo.dsl`、`invalid.dsl`）。
 
 ## 出力の優先順位
 
@@ -70,6 +90,7 @@ Figma API / Figma Skill は**使わない**。出力先として人が後から 
 | [references/layout-algorithm.md](references/layout-algorithm.md) | 決定的レイアウト（rank / group / 座標） | 配置を出すとき |
 | [references/theme.md](references/theme.md) | テーマ定数（kind ごとの色・フォント・固定 hex） | 色・文字体裁を出すとき |
 | [references/output-formats.md](references/output-formats.md) | SVG / HTML / Mermaid の出し方、Figma 不使用 | 形式を選ぶとき |
+| [scripts/README.md](scripts/README.md) ＋ [scripts/](scripts/) | 実行可能レンダラー本体（parser/validator/layout/emitter/CLI）と使い方 | **図を実際に生成するとき（主経路）** |
 
 ## 関連スキル
 
