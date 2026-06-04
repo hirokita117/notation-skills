@@ -64,6 +64,7 @@ cat input.repo-map | node render_repo_map.mjs - --format json
 | `html_emitter.mjs` | 完全 Viewer（固定テンプレ＋注入 SVG＋ドラッグ） |
 | `mermaid_emitter.mjs` | `graph TD` への機械変換（任意） |
 | `render_repo_map.mjs` | CLI ファサード（引数解析・stdin/file・dispatch・終了コード）＋兄弟再エクスポート |
+| `build-gallery.mjs` | `examples/*.dsl` を走査し決定的に DSL カタログ（リポジトリ直下 `gallery/`）を生成（`render_repo_map` に委譲・stdlib のみ） |
 
 ## テスト
 
@@ -76,3 +77,14 @@ node --test skills/notation-render/tests/
 少なくとも次を確認する: valid DSL のパース / invalid DSL の error / 同じ DSL から同じ layout /
 同じ DSL から同じ SVG 文字列 / `@layout rank=` の反映 / 未定義ノード参照の error /
 コミット済みスナップショット（[`../examples/`](../examples/)）とのバイト一致。
+
+## DSL カタログ（ギャラリー）
+
+`build-gallery.mjs` は `examples/*.dsl` を走査し、各例の「DSL 全文 / 生成 HTML（iframe）/ SVG」を 1 画面で
+見比べる静的ギャラリーをリポジトリ直下 `gallery/` に生成する（決定的・`file://` で開ける）。
+
+```sh
+node skills/notation-render/scripts/build-gallery.mjs
+```
+
+新しい例を足す手順はリポジトリ直下 [`README.md`](../../../README.md) の「DSL カタログ（ギャラリー）」を参照。

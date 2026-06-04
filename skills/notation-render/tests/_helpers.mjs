@@ -12,9 +12,15 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const examplesDir = join(here, "..", "examples");
 export const scriptsDir = join(here, "..", "scripts");
 export const cliPath = join(scriptsDir, "render_repo_map.mjs");
+// リポジトリ直下の生成済みギャラリー（build-gallery.mjs の出力先）。
+export const galleryDir = join(here, "..", "..", "..", "gallery");
 
 export function readExample(name) {
   return readFileSync(join(examplesDir, name), "utf8");
+}
+
+export function readGallery(name) {
+  return readFileSync(join(galleryDir, name), "utf8");
 }
 
 /** parse → validate → sort した全診断（決定的順）。 */

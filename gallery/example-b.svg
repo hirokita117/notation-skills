@@ -1,0 +1,66 @@
+<svg width="1008" height="336" viewBox="0 0 1008 336" xmlns="http://www.w3.org/2000/svg" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#4B5563"></path>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1008" height="336" fill="#FFFFFF"></rect>
+  <line class="edge" data-from="authsvc" data-to="handlers" data-rel="contains" x1="104" y1="72" x2="104" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="authsvc" data-to="usecases" data-rel="contains" x1="104" y1="72" x2="304" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="authsvc" data-to="repo" data-rel="contains" x1="104" y1="72" x2="504" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="authsvc" data-to="tokens" data-rel="contains" x1="104" y1="72" x2="704" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="authsvc" data-to="config" data-rel="contains" x1="104" y1="72" x2="904" y2="144" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="handlers" data-to="usecases" data-rel="calls" x1="184" y1="168" x2="224" y2="168" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="usecases" data-to="repo" data-rel="calls" x1="384" y1="168" x2="424" y2="168" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="usecases" data-to="tokens" data-rel="imports" x1="384" y1="168" x2="624" y2="168" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="repo" data-to="db" data-rel="reads" x1="504" y1="192" x2="104" y2="264" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="repo" data-to="cache" data-rel="reads" x1="504" y1="192" x2="304" y2="264" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="handlers" data-to="oauth" data-rel="calls" x1="104" y1="192" x2="504" y2="264" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <line class="edge" data-from="tokens" data-to="config" data-rel="imports" x1="784" y1="168" x2="824" y2="168" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"></line>
+  <g class="node" data-node-id="authsvc" data-label="Auth Service" data-kind="package" data-path="services/auth" data-related-edges="authsvc handlers contains&#10;authsvc usecases contains&#10;authsvc repo contains&#10;authsvc tokens contains&#10;authsvc config contains" data-dsl-excerpt="authsvc package &quot;Auth Service&quot; services/auth&#10;authsvc handlers contains&#10;authsvc usecases contains&#10;authsvc repo contains&#10;authsvc tokens contains&#10;authsvc config contains" data-x="24" data-y="24" transform="translate(24,24)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#2563EB" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Auth Service</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">authsvc</text>
+  </g>
+  <g class="node" data-node-id="handlers" data-label="HTTP Handlers" data-kind="file-group" data-path="src/handlers" data-related-edges="authsvc handlers contains&#10;handlers usecases calls&#10;handlers oauth calls" data-dsl-excerpt="handlers file-group &quot;HTTP Handlers&quot; src/handlers&#10;authsvc handlers contains&#10;handlers usecases calls&#10;handlers oauth calls" data-x="24" data-y="144" transform="translate(24,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#14B8A6" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">HTTP Handlers</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">handlers</text>
+  </g>
+  <g class="node" data-node-id="usecases" data-label="Use Cases" data-kind="file-group" data-path="src/usecases" data-related-edges="authsvc usecases contains&#10;handlers usecases calls&#10;usecases repo calls&#10;usecases tokens imports" data-dsl-excerpt="usecases file-group &quot;Use Cases&quot; src/usecases&#10;authsvc usecases contains&#10;handlers usecases calls&#10;usecases repo calls&#10;usecases tokens imports" data-x="224" data-y="144" transform="translate(224,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#14B8A6" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Use Cases</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">usecases</text>
+  </g>
+  <g class="node" data-node-id="repo" data-label="Repositories" data-kind="file-group" data-path="src/repo" data-related-edges="authsvc repo contains&#10;usecases repo calls&#10;repo db reads&#10;repo cache reads" data-dsl-excerpt="repo file-group Repositories src/repo&#10;authsvc repo contains&#10;usecases repo calls&#10;repo db reads&#10;repo cache reads" data-x="424" data-y="144" transform="translate(424,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#14B8A6" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Repositories</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">repo</text>
+  </g>
+  <g class="node" data-node-id="tokens" data-label="Token Library" data-kind="module" data-path="src/tokens" data-related-edges="authsvc tokens contains&#10;usecases tokens imports&#10;tokens config imports" data-dsl-excerpt="tokens module &quot;Token Library&quot; src/tokens&#10;authsvc tokens contains&#10;usecases tokens imports&#10;tokens config imports" data-x="624" data-y="144" transform="translate(624,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#0EA5E9" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Token Library</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">tokens</text>
+  </g>
+  <g class="node" data-node-id="config" data-label="Config" data-kind="file-group" data-path="src/config" data-related-edges="authsvc config contains&#10;tokens config imports" data-dsl-excerpt="config file-group Config src/config&#10;authsvc config contains&#10;tokens config imports" data-x="824" data-y="144" transform="translate(824,144)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#14B8A6" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Config</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">config</text>
+  </g>
+  <g class="node" data-node-id="db" data-label="Postgres" data-kind="datastore" data-path="" data-related-edges="repo db reads" data-dsl-excerpt="db datastore Postgres&#10;repo db reads" data-x="24" data-y="264" transform="translate(24,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#7C3AED" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Postgres</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">db</text>
+  </g>
+  <g class="node" data-node-id="cache" data-label="Redis" data-kind="datastore" data-path="" data-related-edges="repo cache reads" data-dsl-excerpt="cache datastore Redis&#10;repo cache reads" data-x="224" data-y="264" transform="translate(224,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#7C3AED" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#FFFFFF" font-size="13">Redis</text>
+    <text x="80" y="38" text-anchor="middle" fill="#FFFFFF" font-size="10" opacity="0.8">cache</text>
+  </g>
+  <g class="node" data-node-id="oauth" data-label="OAuth Provider" data-kind="external" data-path="" data-related-edges="handlers oauth calls" data-dsl-excerpt="oauth external &quot;OAuth Provider&quot;&#10;handlers oauth calls" data-x="424" data-y="264" transform="translate(424,264)">
+    <rect x="0" y="0" width="160" height="48" rx="8" fill="#9CA3AF" stroke="#111827" stroke-width="1"></rect>
+    <text x="80" y="22" text-anchor="middle" fill="#111827" font-size="13">OAuth Provider</text>
+    <text x="80" y="38" text-anchor="middle" fill="#111827" font-size="10" opacity="0.8">oauth</text>
+  </g>
+  <rect class="focus-frame" data-focus-for="handlers" x="21" y="141" width="166" height="54" rx="10" fill="none" stroke="#F59E0B" stroke-width="3"></rect>
+</svg>

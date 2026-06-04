@@ -329,6 +329,20 @@ python3 skills/repo-map-interactive-viewer/scripts/repo_map_local_bridge.py \
 
 ---
 
+## DSL カタログ（ギャラリー）
+
+`repo-map v1` の代表例を「**DSL 全文 / 生成 HTML（インタラクティブ Viewer・iframe）/ SVG**」で 1 画面比較できる静的ギャラリーを `gallery/` に同梱しています。`gallery/index.html` を **`file://` で開く**だけで、左の一覧（notation バージョンで自動グループ化）から例を選び、右のタブで切り替えられます。Storybook 本体・npm 依存は不要（Node 標準ライブラリのみ・決定的）です。
+
+**新しい例を足す手順:**
+
+1. `skills/notation-render/examples/` に `*.dsl` を置く（任意で先頭に `# story: 表示名` / `# desc: 一行説明` コメント）。
+2. `node skills/notation-render/scripts/build-gallery.mjs` を実行する。
+3. `gallery/index.html` と各プレビュー（`<id>.svg` / `<id>.html`）が再生成され、一覧に載る。
+4. タグ（layout / focus / invalid）と notation バージョンは自動判定。描画不可な invalid 例は診断（stderr 形式）を表示。
+5. 生成された `gallery/` と新しい `.dsl` をコミットする。
+
+---
+
 ## ディレクトリ構成
 
 ```
@@ -336,6 +350,7 @@ notation-skills/
 ├── README.md
 ├── LICENSE                         # MIT
 ├── SKILLS_MAP.md                   # Skill の連携と「正本」の所在
+├── gallery/                        # DSL カタログ（build-gallery.mjs の生成物・file:// で開ける）
 ├── .claude-plugin/
 │   ├── plugin.json                 # プラグイン本体のマニフェスト
 │   └── marketplace.json            # このリポジトリを marketplace 化
