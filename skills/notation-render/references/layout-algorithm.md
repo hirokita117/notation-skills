@@ -1,6 +1,6 @@
-# layout-algorithm — 決定的レイアウトとテーマ定数
+# layout-algorithm — 決定的レイアウト
 
-`@layout` が無い／部分的なときに座標を決める手順と、図の見た目を固定するテーマ定数を定める。目的は唯一、**同じ `RepoMap` から常に同じ幾何（座標・並び）を出すこと**。内部モデルは [grammar.md §4](../../repo-map-notation/references/grammar.md)。
+`@layout` が無い／部分的なときに座標を決める手順を定める。目的は唯一、**同じ `RepoMap` から常に同じ幾何（座標・並び）を出すこと**。図の見た目を固定するテーマ定数（kind ごとの色・フォント）は [theme.md](theme.md) が正本。内部モデルは [grammar.md §4](../../repo-map-notation/references/grammar.md)。
 
 レイアウトは「上から下へのレイヤー配置（top-down）」: ランク = 縦の帯、帯内の位置 = 横の順。**以下のあらゆる並び替えは安定ソートで、最後のタイブレークは正準順（ノードのソース順 / エッジの `index`）**。これが自由度をすべて消す。
 
@@ -62,53 +62,16 @@ y(n) = MARGIN + r * (NODE_H + V_GAP)
 - 各帯のスロット index *s* は 0 から振り直す。帯は**左揃え**（どの帯もスロット 0 は同じ x）。最も単純で完全に決まる規則。
 - キャンバス幅 = `MARGIN*2 + (最大スロット数)*(NODE_W+H_GAP) − H_GAP`、高さ = `MARGIN*2 + (最大ランク+1)*(NODE_H+V_GAP) − V_GAP`。
 - **エッジの経路**: 各辺は直線。下向き（`to` が下のランク）なら `from` の下辺中央 → `to` の上辺中央。同じ帯または `to` が上（後退辺・上向き依存）なら、右辺中央 → 左辺中央。どちらを使うかは 2 つのランクだけで決まるので決定的。矢頭は `to` 端。曲線・力学シミュレーションは使わない（直線のみ）。
-- **focus**: `meta.focus` のノードは focus 枠（§5）を付けるだけで、**幾何は変えない**（強調であって再配置ではない）。
+- **focus**: `meta.focus` のノードは focus 枠（[theme.md](theme.md) の `FOCUS_STROKE`）を付けるだけで、**幾何は変えない**（強調であって再配置ではない）。
 
 ---
 
-## 5. テーマ定数
+## 5. 決定性（まとめ）
 
-テーマは 1 つに固定する。地図ごとの色選びはしない。
-
-**kind ごとの箱の塗り:**
-
-| kind | 塗り hex | 文字色 |
-|------|----------|--------|
-| system | `#1F2937` | 白 |
-| package | `#2563EB` | 白 |
-| module | `#0EA5E9` | 白 |
-| file-group | `#14B8A6` | 白 |
-| external | `#9CA3AF` | 濃灰 `#111827`（コントラスト確保） |
-| datastore | `#7C3AED` | 白 |
-
-**共通定数:**
-
-```
-EDGE_COLOR      = #4B5563      （全エッジ共通）
-EDGE_DEP_DASH   = "4 3"        （依存系 imports/calls/reads は破線）
-EDGE_HIER       = 実線          （階層系 contains/deploys/owns は実線）
-ARROW           = #4B5563 の塗り三角・8px（to 端）
-BACKGROUND      = #FFFFFF
-NODE_STROKE     = #111827 1px
-NODE_RADIUS     = 8px（角丸）
-FOCUS_STROKE    = #F59E0B 3px（focus ノードの枠）
-FONT_FAMILY     = "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
-FONT_SIZE_LABEL = 13px（ラベル）
-FONT_SIZE_ID    = 10px（ラベル下に薄く ID を表示）
-FONT_SIZE_LEGEND= 12px
-```
-
-- 箱は `NODE_W × NODE_H`（160×48）、ラベルを中央、その下に小さく ID。
-- 文字が `NODE_W − 16px` を超えたら末尾を省略（…）。省略は文字列だけの関数なので決定的。
-- **線種で階層 / 依存を見分ける**: 実線 = 構造（contains/deploys/owns）、破線 = 依存（imports/calls/reads）。色を増やさずに 2 種を区別できる。
-
----
-
-## 6. 決定性（まとめ）
-
-§2〜§5 の出力は `RepoMap` の純関数である: 反復するすべての集合に、正準ソース順で終わる明示的な全順序を与え、循環断ちは index 順の決定的 1 パス、間隔はすべて定数。よって SVG のノード位置・帯順・エッジ端点は、どのレンダラでも・何度走らせても一致する。乱数なし、幾何に時刻を入れない、ヒューリスティックのブレなし——[notation-core 原則 5](../../notation-core/references/principles.md)。
+§2〜§4 の出力は `RepoMap` の純関数である: 反復するすべての集合に、正準ソース順で終わる明示的な全順序を与え、循環断ちは index 順の決定的 1 パス、間隔はすべて定数。よって SVG のノード位置・帯順・エッジ端点は、どのレンダラでも・何度走らせても一致する。乱数なし、幾何に時刻を入れない、ヒューリスティックのブレなし——[notation-core 原則 5](../../notation-core/references/principles.md)。
 
 ## 関連
+- テーマ定数（色・フォント・固定 hex）: [theme.md](theme.md)
 - 入力契約・パイプライン: [render-contract.md](render-contract.md)
-- 出力形式（このテーマで SVG/HTML を出す）: [output-formats.md](output-formats.md)
+- 出力形式: [output-formats.md](output-formats.md)
 - 内部モデル: [grammar.md §4](../../repo-map-notation/references/grammar.md)

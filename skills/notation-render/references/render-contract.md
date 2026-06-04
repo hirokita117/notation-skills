@@ -53,7 +53,7 @@ RepoMap {
 検証を通った `RepoMap` から座標を決める。`@layout` の rank/group を尊重し、無い／部分のところは決定的アルゴリズムで埋める。手順とタイブレークは [layout-algorithm.md](layout-algorithm.md)。**ここで初めて座標が生まれる**（モデル自体は座標を持たない）。
 
 ### 4. emit
-固定テーマで図を書き出す。既定は SVG、次に HTML、任意で Mermaid。形式ごとの規約は [output-formats.md](output-formats.md)。色・フォント・寸法は固定定数（[layout-algorithm.md](layout-algorithm.md) のテーマ）。
+固定テーマで図を書き出す。既定は SVG、次に HTML、任意で Mermaid。形式ごとの規約は [output-formats.md](output-formats.md)。色・フォントは固定テーマ（[theme.md](theme.md)）、寸法・座標は固定定数（[layout-algorithm.md](layout-algorithm.md)）。
 
 ---
 
@@ -67,6 +67,7 @@ RepoMap {
 
 ## 関連
 - 文法・内部モデル・検証（正本）: [repo-map-notation/references/grammar.md](../../repo-map-notation/references/grammar.md)
-- レイアウトとテーマ: [layout-algorithm.md](layout-algorithm.md)
+- レイアウト: [layout-algorithm.md](layout-algorithm.md)
+- テーマ（色・フォント）: [theme.md](theme.md)
 - 出力形式: [output-formats.md](output-formats.md)
 - 原則: [notation-core](../../notation-core/SKILL.md)
